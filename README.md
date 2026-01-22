@@ -11,9 +11,12 @@ Collaborateurs :
 
 ## Matrice de Compétences
 
-| | Python | Robotique | Automatisme |-----|:-----:|----:| |
-Matthieu | 3 | 3 | 3 | |
-Simon |  |  | 4 | |
-Aymeric | 2 | 3 | 4 | |
+|          | Python | Robotique | Automatisme |
+|----------|--------|-----------|-------------|
+| Matthieu |   3    |     3     |      3      |
+|----------|--------|-----------|-------------|
+| Simon    |   2    |     3     |      4      |
+|----------|--------|-----------|-------------|
+| Aymeric  |   2    |     3     |      4      |
 
 ## TBD
