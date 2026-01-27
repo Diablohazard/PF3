@@ -3,11 +3,11 @@
 ## Equipe A - Groupe 3
 
 Manager :  
-![Matthieu Dru](/home/user/Images/Image1.png)  
+![Matthieu Dru](/home/user/PF3/projet PF3/PF3/Image1.png)  
   
 Collaborateurs :  
-![BLANCHET Simon](/home/user/Images/Image2.png)  
-![AYIKOE Aymeric](/home/user/Images/Image3.png)
+![BLANCHET Simon](/home/user/PF3/projet PF3/PF3/Image2.png)  
+![AYIKOE Aymeric](/home/user/PF3/projet PF3/PF3/Image3.png)
 
 ## Matrice de Compétences
 
