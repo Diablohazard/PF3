@@ -5,7 +5,7 @@ body {
 
 /* LOGIN */
 .login-body {
-    background-color: #9b96c9;
+    background-color: #b8b5fd;
     display: flex;
     justify-content: center;
     align-items: center;
@@ -58,7 +58,7 @@ header {
 
 .container {
     padding: 20px;
-    background-color: #9b96c9;
+    background-color: #b8b5fd;
 }
 
 .section {
