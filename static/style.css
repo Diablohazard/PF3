@@ -86,3 +86,19 @@ header {
     justify-content: space-between;
     align-items: center;
 }
+
+.accordion-header {
+    width: 100%;
+    background-color: #cfcfcf;
+    border: none;
+    padding: 15px;
+    text-align: left;
+    cursor: pointer;
+}
+
+.accordion-content {
+    max-height: 0;
+    overflow: hidden;
+    background-color: #e5e5e5;
+    transition: max-height 0.3s ease;
+}

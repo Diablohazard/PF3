@@ -14,31 +14,43 @@
 
 <div class="container">
 
-    <div class="section">
-        <h3>Historique des commandes</h3>
-    </div>
+    <div class="accordion">
 
-    <div class="section">
-        <h3>Suivi des consommations électriques</h3>
-        <div class="charts">
-            <div class="chart">Graphique 1</div>
-            <div class="chart">Graphique 2</div>
+        <!-- Historique -->
+        <div class="accordion-item">
+            <button class="accordion-header">Historique des commandes</button>
+            <div class="accordion-content">
+                <p>Contenu historique...</p>
+            </div>
         </div>
-    </div>
-
-    <div class="section">
-        <h3>Opérations de maintenance planifiées</h3>
-
-        <div class="maintenance">
-            <table>
-                <tr>
-                    <th>Date</th>
-                    <th>Commentaire</th>
-                </tr>
-            </table>
-
-            <button>BP Planifier</button>
+    
+        <!-- Consommation -->
+        <div class="accordion-item">
+            <button class="accordion-header">Suivi des consommations électriques</button>
+            <div class="accordion-content">
+                <div class="charts">
+                    <div class="chart">Graphique 1</div>
+                    <div class="chart">Graphique 2</div>
+                </div>
+            </div>
         </div>
+    
+        <!-- Maintenance -->
+        <div class="accordion-item">
+            <button class="accordion-header">Opérations de maintenance planifiées</button>
+            <div class="accordion-content">
+                <div class="maintenance">
+                    <table>
+                        <tr>
+                            <th>Date</th>
+                            <th>Commentaire</th>
+                        </tr>
+                    </table>
+                    <button>BP Planifier</button>
+                </div>
+            </div>
+        </div>
+    
     </div>
 
 </div>
@@ -59,6 +71,22 @@
     // Lancer immédiatement
     updateDateTime();
 </script>
+
+<script>
+    const headers = document.querySelectorAll(".accordion-header");
+    
+    headers.forEach(header => {
+        header.addEventListener("click", () => {
+            const content = header.nextElementSibling;
+    
+            if (content.style.maxHeight) {
+                content.style.maxHeight = null;
+            } else {
+                content.style.maxHeight = content.scrollHeight + "px";
+            }
+        });
+    });
+    </script>
 
 </body>
 </html>
