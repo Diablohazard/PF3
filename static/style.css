@@ -1,0 +1,88 @@
+body {
+    margin: 0;
+    font-family: Arial, sans-serif;
+}
+
+/* LOGIN */
+.login-body {
+    background-color: #9b96c9;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+}
+
+.login-container {
+    text-align: center;
+}
+
+.logo {
+    width: 300px;
+    margin-bottom: 20px;
+}
+
+input {
+    display: block;
+    margin: 10px auto;
+    padding: 10px;
+    border-radius: 10px;
+    border: none;
+    width: 200px;
+}
+
+button {
+    padding: 10px 20px;
+    background-color: #2b7bb9;
+    color: white;
+    border: none;
+    border-radius: 10px;
+    cursor: pointer;
+}
+
+button:hover {
+    background-color: #1f5f8a;
+}
+
+.error {
+    color: red;
+}
+
+/* DASHBOARD */
+
+header {
+    background-color: #b7d3b1;
+    padding: 10px;
+    display: flex;
+    justify-content: space-between;
+}
+
+.container {
+    padding: 20px;
+    background-color: #9b96c9;
+}
+
+.section {
+    background-color: #cfcfcf;
+    margin-bottom: 20px;
+    padding: 10px;
+}
+
+.charts {
+    display: flex;
+    justify-content: space-around;
+}
+
+.chart {
+    width: 40%;
+    height: 150px;
+    background-color: white;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.maintenance {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
