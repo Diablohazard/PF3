@@ -9,7 +9,7 @@
 
 <header>
     <div>OPERATEUR</div>
-    <div>Date / Heure</div>
+    <div id="datetime"></div>
 </header>
 
 <div class="container">
@@ -42,6 +42,23 @@
     </div>
 
 </div>
+
+<script>
+    function updateDateTime() {
+        const now = new Date();
+    
+        const date = now.toLocaleDateString('fr-FR');
+        const time = now.toLocaleTimeString('fr-FR');
+    
+        document.getElementById("datetime").innerHTML = date + " " + time;
+    }
+    
+    // Met à jour toutes les secondes
+    setInterval(updateDateTime, 1000);
+    
+    // Lancer immédiatement
+    updateDateTime();
+</script>
 
 </body>
 </html>
