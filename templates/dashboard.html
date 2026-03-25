@@ -55,8 +55,23 @@
                             <th>Commentaire</th>
                         </tr>
                     </table>
-                    <button>BP Planifier</button>
+                    <button id="openModalBtn">BP Planifier</button>
                 </div>
+            </div>
+        </div>
+
+        <!-- Modal -->
+        <div id="maintenanceModal" style="display:none; position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.5); align-items:center; justify-content:center;">
+            <div style="background:rgb(202, 198, 198); padding:20px; border-radius:8px; min-width:300px; position:relative;">
+            <h3>Planifier une maintenance</h3>
+            <form id="maintenanceForm" method="post" action="/planifier_maintenance">
+                <label for="date_maintenance">Date :</label>
+                <input type="date" id="date_maintenance" name="date_maintenance" required><br><br>
+                <label for="commentaire">Commentaire :</label>
+                <input type="text" id="commentaire" name="commentaire" required><br><br>
+                <button type="submit">Enregistrer</button>
+                <button type="button" id="closeModalBtn" style="margin-left:10px;">Annuler</button>
+            </form>
             </div>
         </div>
     
@@ -97,5 +112,18 @@
     });
     </script>
 
+    <script>
+        document.getElementById('openModalBtn').onclick = function() {
+            document.getElementById('maintenanceModal').style.display = 'flex';
+        };
+        document.getElementById('closeModalBtn').onclick = function() {
+            document.getElementById('maintenanceModal').style.display = 'none';
+        };
+        // Optionnel : fermer la modale après soumission
+        document.getElementById('maintenanceForm').onsubmit = function() {
+            document.getElementById('maintenanceModal').style.display = 'none';
+            // Laisse le formulaire se soumettre normalement (POST)
+        };
+    </script>
 </body>
 </html>
