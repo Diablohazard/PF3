@@ -1,5 +1,8 @@
 # 1. Installer le module : pip install mysql-connector-python
 import mysql.connector
+from flask import Flask, render_template
+
+app = Flask(__name__)
 
 def enregistrer_intervention(nom, horodatage):
     # 2. Connexion à la base de données
@@ -30,12 +33,15 @@ def recuperer_interventions():
     )
     cursor = conn.cursor(dictionary=True)
 
-    sql = "SELECT nom, horodatage FROM intervention ORDER BY horodatage DESC"
-    cursor.execute(sql)
-
-    resultats = cursor.fetchall()
+    cursor.execute("SELECT nom, horodatage FROM intervention ORDER BY horodatage DESC")
+    data = cursor.fetchall()
 
     cursor.close()
     conn.close()
 
-    return resultats
+    return data
+
+@app.route("/")
+def dashboard():
+    interventions = recuperer_interventions()
+    return render_template("dashboard.html", interventions=interventions)
