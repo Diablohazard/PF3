@@ -20,3 +20,22 @@ def enregistrer_intervention(nom, horodatage):
 
 # Exemple d'utilisation :
 # enregistrer_intervention("Maintenance préventive", "2024-06-07 10:00:00")
+
+def recuperer_interventions():
+    conn = mysql.connector.connect(
+        host="localhost",
+        user="",
+        password="",
+        database="PF3"
+    )
+    cursor = conn.cursor(dictionary=True)
+
+    sql = "SELECT nom, horodatage FROM intervention ORDER BY horodatage DESC"
+    cursor.execute(sql)
+
+    resultats = cursor.fetchall()
+
+    cursor.close()
+    conn.close()
+
+    return resultats
