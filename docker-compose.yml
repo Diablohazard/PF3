@@ -2,7 +2,7 @@ version: '3.8'
 
 services:
   app:
-    image: your-image-name
+    image: dru_group3
     build:
       context: .
       dockerfile: Dockerfile
