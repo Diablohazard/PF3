@@ -26,5 +26,30 @@ def dashboard():
     return render_template("dashboard.html")
 
 
+
+# Route pour la page d'administration
+@app.route("/admin", methods=["GET", "POST"])
+def admin():
+    return render_template("admin.html")
+
+
+# Route pour créer un nouvel utilisateur (pour l'instant, on enregistre dans un fichier)
+@app.route("/create_user", methods=["POST"])
+def create_user():
+    username = request.form["new_username"]
+    password = request.form["new_password"]
+
+    # pour l'instant on enregistre dans un fichier
+    with open("users.txt", "a") as f:
+        f.write(f"{username}:{password}\n")
+
+    return render_template("admin.html", message="Utilisateur créé avec succès !")
+
+
+
 if __name__ == "__main__":
-    app.run(host='0.0.0.0', port=8080, debug=True)
+    app.run(host='0.0.0.0', port=8180, debug=True)
+
+
+
+
