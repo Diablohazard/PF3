@@ -1,0 +1,20 @@
+from sqlalchemy import Column, Integer, String, ForeignKey
+from sqlalchemy.orm import relationship
+from app.database.base import Base
+
+class Users(Base):
+    __tablename__ = "Users"
+
+    id_user = Column(Integer, primary_key=True, autoincrement=True)
+    prenom = Column(String(50), nullable=False)
+    nom = Column(String(50), nullable=False)
+    login = Column(String(50), unique=True, nullable=False)
+    password = Column(String(50), nullable=False)
+
+    ## Pour la jointure
+    id_instrument = Column(Integer, ForeignKey("instrument.id_instrument"), nullable=True)
+    instrument = relationship("Instrument", back_populates="artistes")
+
+    ## Pour afficher l'objet Artiste
+    #def __repr__(self):
+    #    return f"<Artiste(nom={self.nom}, prenom={self.prenom})>"
