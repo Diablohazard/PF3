@@ -12,8 +12,8 @@ class Users(Base):
     password = Column(String(50), nullable=False)
 
     ## Pour la jointure
-    id_instrument = Column(Integer, ForeignKey("instrument.id_instrument"), nullable=True)
-    instrument = relationship("Instrument", back_populates="artistes")
+    id_role = Column(Integer, ForeignKey("roles.id_role"), nullable=True)
+    role = relationship("roles", back_populates="users")
 
     ## Pour afficher l'objet Artiste
     #def __repr__(self):
