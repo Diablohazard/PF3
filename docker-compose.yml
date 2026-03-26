@@ -3,18 +3,18 @@ services:
     build: .
     restart: always
     ports:
-      - "8180:8180"
+      - "8180:8080"
     depends_on:
       - db
     environment:
       DB_HOST: db
-      DB_PORT: 3306
+      DB_PORT: 8181
       DB_NAME: pf3
       DB_USER: pf3user
       DB_PASSWORD: pf3password
 
   db:
-    image: mysql:8.0.45-bookworm
+    image: mysql:8
     restart: always
     environment:
       MYSQL_ROOT_PASSWORD: rootpassword
