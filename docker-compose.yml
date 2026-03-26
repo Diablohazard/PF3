@@ -3,7 +3,7 @@ services:
     build: .
     restart: always
     ports:
-      - "8180:8080"
+      - "8180:8180"
     depends_on:
       - db
     environment:
