@@ -5,7 +5,9 @@ app = Flask(__name__, template_folder="../templates", static_folder="../static")
 # On définit les identifiants pour les deux types d'utilisateurs
 USERS = {
     "Operat": "Operator",
-    "Respo": "Responsable"
+    "Respo": "Responsable",
+    "Integ": "Integrator",
+    "Admin": "Administrator"
 }
 
 @app.route("/", methods=["GET", "POST"])
@@ -15,12 +17,19 @@ def login():
         user = request.form.get("username")
         password = request.form.get("password")
 
-        # Vérification dans le dictionnaire
+        # 1. Vérification si l'utilisateur existe et si le mot de passe est correct
         if user in USERS and USERS[user] == password:
-            if user == "responsable":
-                return redirect(url_for("dashboard_resp")) # Nom de la fonction
-            else:
-                return redirect(url_for("dashboard_op"))   # Nom de la fonction
+            
+            # 2. Redirection selon le rôle (on compare avec les clés du dictionnaire)
+            if user == "Respo":
+                return redirect(url_for("dashboard_resp"))
+            
+            elif user == "Integ":
+                return redirect(url_for("dashboard_integ"))
+            
+            elif user == "Operat":
+                return redirect(url_for("dashboard_op"))
+        
         else:
             error = "Identifiants incorrects"
 
