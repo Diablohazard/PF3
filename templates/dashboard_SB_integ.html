@@ -2,67 +2,98 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <title>Dashboard</title>
+    <title>Dashboard Intégrateur</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
 
-<header style="background: #cffbcd; color: rgb(0, 0, 0); display: flex; align-items: center; justify-content: space-between; padding: 10px;">
-    <div style="flex: 1; text-align: left;">
-        <form action="/" method="get" style="display: inline;">
-            <button type="submit" style="background: rgb(0, 0, 0); color: #fcfcfc; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer;">
-                Déconnexion
-            </button>
-        </form>
-    </div>
-    <div style="flex: 1; text-align: center; font-weight: bold;">
-        INTEGRATEUR
-    </div>
-    <div style="flex: 1; text-align: right;" id="datetime"></div>
-</header>
-
-<div class="container">
-
-    <div class="accordion">
-
-        <!-- Historique -->
-        <div class="accordion-item">
-            <button class="accordion-header">Historique des commandes</button>
-            <div class="accordion-content">
-                <p>Contenu historique...</p>
-            </div>
+    <header style="background: #cffbcd; color: rgb(0, 0, 0); display: flex; align-items: center; justify-content: space-between; padding: 10px;">
+        <div style="flex: 1; text-align: left;">
+            <form action="/" method="get" style="display: inline;">
+                <button type="submit" style="background: rgb(0, 0, 0); color: #fcfcfc; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer;">
+                    Déconnexion
+                </button>
+            </form>
         </div>
-    
-        <!-- Consommation -->
-        <div class="accordion-item">
-            <button class="accordion-header">Suivi des consommations électriques</button>
-            <div class="accordion-content">
-                <div class="charts">
-                    <div class="chart">Graphique 1</div>
-                    <div class="chart">Graphique 2</div>
+        <div style="flex: 1; text-align: center; font-weight: bold;">
+            INTEGRATEUR
+        </div>
+        <div style="flex: 1; text-align: right;" id="datetime"></div>
+    </header>
+
+    <div class="container">
+        <div class="accordion">
+
+            <div class="accordion-item">
+                <button class="accordion-header">Historique des commandes</button>
+                <div class="accordion-content">
+                    <p>Contenu historique...</p>
                 </div>
             </div>
-        </div>
-    
-        <!-- Maintenance -->
-        <div class="accordion-item">
-            <button class="accordion-header">Opérations de maintenance planifiées</button>
-            <div class="accordion-content">
-                <div class="maintenance">
-                    <table>
-                        <tr>
-                            <th>Date</th>
-                            <th>Commentaire</th>
-                        </tr>
-                    </table>
-                    <button id="openModalBtn">BP Planifier</button>
+
+            <div class="accordion-item">
+                <button class="accordion-header">Suivi des consommations électriques</button>
+                <div class="accordion-content">
+                    <div class="charts">
+                        <div class="chart">Graphique 1</div>
+                        <div class="chart">Graphique 2</div>
+                    </div>
                 </div>
             </div>
-        </div>
 
-        <!-- Modal -->
-        <div id="maintenanceModal" style="display:none; position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.5); align-items:center; justify-content:center;">
-            <div style="background:rgb(202, 198, 198); padding:20px; border-radius:8px; min-width:300px; position:relative;">
+            <div class="accordion-item">
+                <button class="accordion-header">Opérations de maintenance planifiées</button>
+                <div class="accordion-content">
+                    <div class="maintenance">
+                        <table>
+                            <tr>
+                                <th>Date</th>
+                                <th>Commentaire</th>
+                            </tr>
+                        </table>
+                        <button id="openModalBtn">BP Planifier</button>
+                    </div>
+                </div>
+            </div>
+
+            <div style="display: flex; gap: 10px; margin-top: 10px;">
+                
+                <div class="accordion-item" style="flex: 1; min-height: 120px;">
+                    <button class="accordion-header" style="height: 100%; display: flex; align-items: center; justify-content: center; text-align: center;">
+                        Charge CPU
+                    </button>
+                    <div class="accordion-content">
+                         <p>Utilisation actuelle : <span id="cpu-load">-- %</span></p>
+                        <div style="width: 100%; bg-color: #eee; height: 10px; border-radius: 5px; background: #eee;"></div>
+                        <div style="width: 45%; height: 100%; background: #4caf50; border-radius: 5px;"></div>
+                        
+                    </div>
+                </div>
+
+                <div class="accordion-item" style="flex: 1; min-height: 120px;">
+                    <button class="accordion-header" style="height: 100%; display: flex; align-items: center; justify-content: center; text-align: center;">
+                        RAM CPU
+                    </button>
+                    <div class="accordion-content">
+                        <div style="padding: 10px; text-align: center;">
+                            <span id="ram-usage" style="font-size: 1.2rem; font-weight: bold;">8 / 16 Go</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="accordion-item" style="flex: 1; min-height: 120px;">
+                    <button class="accordion-header" style="height: 100%; display: flex; align-items: center; justify-content: center; text-align: center;">
+                        Temp. CPU
+                    </button>
+                    <div class="accordion-content">
+                        <div style="padding: 10px; text-align: center;">
+                            <span id="cpu-temp" style="font-size: 1.2rem; font-weight: bold; color: #e67e22;">55 °C</span>
+                        </div>
+                    </div>
+                </div>
+
+            </div> </div> </div> <div id="maintenanceModal" style="display:none; position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.5); align-items:center; justify-content:center; z-index: 1000;">
+        <div style="background:rgb(202, 198, 198); padding:20px; border-radius:8px; min-width:300px; position:relative;">
             <h3>Planifier une maintenance</h3>
             <form id="maintenanceForm" method="post" action="/planifier_maintenance">
                 <label for="date_maintenance">Date :</label>
@@ -72,12 +103,8 @@
                 <button type="submit">Enregistrer</button>
                 <button type="button" id="closeModalBtn" style="margin-left:10px;">Annuler</button>
             </form>
-            </div>
         </div>
-    
     </div>
-
-</div>
 
 <script>
     function updateDateTime() {

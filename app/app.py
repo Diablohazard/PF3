@@ -34,6 +34,10 @@ def dashboard_op():
 def dashboard_resp():
     return render_template("dashboard_SB_respo.html")
 
+@app.route("/integrateur")
+def dashboard_integ():
+    return render_template("dashboard_SB_integ.html")
+
 # --- TOUJOURS À LA FIN DU FICHIER ---
 if __name__ == "__main__":
     app.run(host='0.0.0.0', port=8180, debug=True)

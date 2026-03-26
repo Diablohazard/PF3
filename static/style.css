@@ -1,6 +1,7 @@
 body {
     margin: 0;
     font-family: Arial, sans-serif;
+    color: #000000;
 }
 
 /* LOGIN */
@@ -33,7 +34,7 @@ input {
 button {
     padding: 10px 20px;
     background-color: #2b7bb9;
-    color: white;
+    color: #000000;
     border: none;
     border-radius: 10px;
     cursor: pointer;
