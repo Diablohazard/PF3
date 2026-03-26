@@ -56,54 +56,93 @@
                 </div>
             </div>
 
-            <div style="display: flex; gap: 10px; margin-top: 10px;">
-                
-                <div class="accordion-item" style="flex: 1; min-height: 120px;">
-                    <button class="accordion-header" style="height: 100%; display: flex; align-items: center; justify-content: center; text-align: center;">
-                        Charge CPU
-                    </button>
-                    <div class="accordion-content">
-                         <p>Utilisation actuelle : <span id="cpu-load">-- %</span></p>
-                        <div style="width: 100%; background-color: rgb(211, 12, 12); height: 10px; border-radius: 5px; background: #eee;"></div>
-                        <div style="width: 45%; height: 100%; background: #4caf50; border-radius: 5px;"></div>
-                        
-                    </div>
-                </div>
-
-                <div class="accordion-item" style="flex: 1; min-height: 120px;">
-                    <button class="accordion-header" style="height: 100%; display: flex; align-items: center; justify-content: center; text-align: center;">
-                        RAM CPU
-                    </button>
-                    <div class="accordion-content">
-                        <div style="padding: 10px; text-align: center;">
-                            <span id="ram-usage" style="font-size: 1.2rem; font-weight: bold;">8 / 16 Go</span>
+            <div style="display: flex; gap: 10px; margin-top: 10px; align-items: flex-start;">
+    
+            <div class="accordion-item" style="flex: 1;">
+                <button class="accordion-header" style="min-height: 120px; width: 100%; display: flex; align-items: center; justify-content: center; text-align: center;">
+                    Charge CPU
+                </button>
+                <div class="accordion-content">
+                    <div style="padding: 10px; text-align: center;">
+                        <p>Utilisation : <span id="cpu-load">-- %</span></p>
+                        <div style="width: 100%; background: #eee; height: 10px; border-radius: 5px;">
+                            <div style="width: 45%; height: 100%; background: #4caf50; border-radius: 5px;"></div>
                         </div>
                     </div>
                 </div>
+            </div>
 
-                <div class="accordion-item" style="flex: 1; min-height: 120px;">
-                    <button class="accordion-header" style="height: 100%; display: flex; align-items: center; justify-content: center; text-align: center;">
-                        Temp. CPU
-                    </button>
-                    <div class="accordion-content">
-                        <div style="padding: 10px; text-align: center;">
-                            <span id="cpu-temp" style="font-size: 1.2rem; font-weight: bold; color: #e67e22;">55 °C</span>
-                        </div>
-                    </div>
+        <div class="accordion-item" style="flex: 1;">
+            <button class="accordion-header" style="min-height: 120px; width: 100%; display: flex; align-items: center; justify-content: center; text-align: center;">
+                RAM CPU
+            </button>
+            <div class="accordion-content">
+                <div style="padding: 10px; text-align: center;">
+                    <span id="ram-usage" style="font-size: 1.2rem; font-weight: bold;">8 / 16 Go</span>
                 </div>
-
-            </div> </div> </div> <div id="maintenanceModal" style="display:none; position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.5); align-items:center; justify-content:center; z-index: 1000;">
-        <div style="background:rgb(202, 198, 198); padding:20px; border-radius:8px; min-width:300px; position:relative;">
-            <h3>Planifier une maintenance</h3>
-            <form id="maintenanceForm" method="post" action="/planifier_maintenance">
-                <label for="date_maintenance">Date :</label>
-                <input type="date" id="date_maintenance" name="date_maintenance" required><br><br>
-                <label for="commentaire">Commentaire :</label>
-                <input type="text" id="commentaire" name="commentaire" required><br><br>
-                <button type="submit">Enregistrer</button>
-                <button type="button" id="closeModalBtn" style="margin-left:10px;">Annuler</button>
-            </form>
+            </div>
         </div>
+
+        <div class="accordion-item" style="flex: 1;">
+            <button class="accordion-header" style="min-height: 120px; width: 100%; display: flex; align-items: center; justify-content: center; text-align: center;">
+                Temp. CPU
+            </button>
+            <div class="accordion-content">
+                <div style="padding: 10px; text-align: center;">
+                    <span id="cpu-temp" style="font-size: 1.2rem; font-weight: bold; color: #e67e22;">55 °C</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="accordion-item" style="margin-top: 20px;">
+                        <button class="accordion-header">Journal des Défauts Système</button>
+                <div class="accordion-content">
+                    <div style="padding: 15px;">
+                        <table style="width: 100%; border-collapse: collapse; background: white;">
+                                <thead>
+                                        <tr style="background-color: #f3f4f6; border-bottom: 2px solid #e5e7eb;">
+                                            <th style="padding: 12px; text-align: left;">Défaut</th>
+                                            <th style="padding: 12px; text-align: left;">Apparition</th>
+                                            <th style="padding: 12px; text-align: left;">Résolution</th>
+                                            <th style="padding: 12px; text-align: center;">Statut</th>
+                                        </tr>
+                                </thead>
+                             <tbody style="color: black;">
+                                        <tr style="border-bottom: 1px solid #eee;">
+                                            <td style="padding: 12px;">Surchauffe CPU (>85°C)</td>
+                                            <td style="padding: 12px;">25/03/2026 14:30</td>
+                                            <td style="padding: 12px;">25/03/2026 14:45</td>
+                                            <td style="padding: 12px; text-align: center;">
+                                                <span style="background: #d1fae5; color: #065f46; padding: 4px 8px; border-radius: 12px; font-size: 0.8rem;">Résolu</span>
+                                            </td>
+                                        </tr>
+                                    <tr style="border-bottom: 1px solid #eee;">
+                                         <td style="padding: 12px;">Perte connexion SQL</td>
+                                         <td style="padding: 12px;">26/03/2026 09:12</td>
+                                         <td style="padding: 12px; color: #9ca3af;">--</td>
+                                         <td style="padding: 12px; text-align: center;">
+                                            <span style="background: #fee2e2; color: #991b1b; padding: 4px 8px; border-radius: 12px; font-size: 0.8rem;">En cours</span>
+                                         </td>
+                                     </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+    </div>
+                                </div> </div> </div> <div id="maintenanceModal" style="display:none; position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.5); align-items:center; justify-content:center; z-index: 1000;">
+                            <div style="background:rgb(202, 198, 198); padding:20px; border-radius:8px; min-width:300px; position:relative;">
+                                <h3>Planifier une maintenance</h3>
+                                <form id="maintenanceForm" method="post" action="/planifier_maintenance">
+                                    <label for="date_maintenance">Date :</label>
+                                    <input type="date" id="date_maintenance" name="date_maintenance" required><br><br>
+                                    <label for="commentaire">Commentaire :</label>
+                                    <input type="text" id="commentaire" name="commentaire" required><br><br>
+                                    <button type="submit">Enregistrer</button>
+                                    <button type="button" id="closeModalBtn" style="margin-left:10px;">Annuler</button>
+                                </form>
+                            </div>
+                           
     </div>
 
 <script>
