@@ -4,6 +4,33 @@
     <meta charset="UTF-8">
     <title>Dashboard</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <style>
+        .accordion {
+            margin-bottom: 24px; /* espace entre chaque feuillet */
+        }
+
+            /* Si tes feuillets sont des éléments .accordion-item ou similaires, adapte ainsi : */
+        .accordion-item {
+            margin-bottom: 24px;
+        }
+
+        #maintenanceTable {
+          width: 100%;
+          border-collapse: separate;
+          border-spacing: 30px 10px; /* espace horizontal et vertical entre les cellules */
+        }
+        #maintenanceTable th, #maintenanceTable td {
+          padding: 12px 24px;
+          text-align: left;
+          font-size: 1.1em;
+        }
+        #maintenanceTable th {
+          background: #e8f6ef;
+        }
+        #maintenanceTable tr:not(:first-child) {
+          background: #f9f9f9;
+        }
+        </style>
 </head>
 <body>
 
@@ -49,11 +76,18 @@
             <button class="accordion-header">Opérations de maintenance planifiées</button>
             <div class="accordion-content">
                 <div class="maintenance">
-                    <table>
+                    <table id="maintenanceTable">
                         <tr>
-                            <th>Date</th>
-                            <th>Commentaire</th>
+                        <th>Date</th>
+                        <th>Commentaire</th>
                         </tr>
+
+                        {% for intervention in interventions %}
+                        <tr>
+                            <td>{{ intervention.horodatage }}</td>
+                            <td>{{ intervention.nom }}</td>
+                        </tr>
+                        {% endfor %}
                     </table>
                     <button id="openModalBtn">BP Planifier</button>
                 </div>
@@ -119,10 +153,28 @@
         document.getElementById('closeModalBtn').onclick = function() {
             document.getElementById('maintenanceModal').style.display = 'none';
         };
-        // Optionnel : fermer la modale après soumission
-        document.getElementById('maintenanceForm').onsubmit = function() {
+        document.getElementById('maintenanceForm').onsubmit = function(e) {
+            e.preventDefault();
+            // Récupère les valeurs
+            const date = document.getElementById('date_maintenance').value;
+            const commentaire = document.getElementById('commentaire').value;
+            // Ajoute une ligne au tableau
+            const table = document.getElementById('maintenanceTable');
+            const row = table.insertRow(-1);
+            const cellDate = row.insertCell(0);
+            const cellComment = row.insertCell(1);
+            cellDate.textContent = date;
+            cellComment.textContent = commentaire;
+            // Ferme la popup
             document.getElementById('maintenanceModal').style.display = 'none';
-            // Laisse le formulaire se soumettre normalement (POST)
+            // Réinitialise le formulaire
+            document.getElementById('maintenanceForm').reset();
+        
+            // Ouvre/agrandit automatiquement le feuillet maintenance
+            // 1. Trouve le contenu de l’accordion maintenance
+            const maintenanceAccordionContent = document.querySelectorAll('.accordion-content')[2];
+            // 2. Met à jour la hauteur
+            maintenanceAccordionContent.style.maxHeight = maintenanceAccordionContent.scrollHeight + "px";
         };
     </script>
 </body>

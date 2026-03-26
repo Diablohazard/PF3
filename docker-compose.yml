@@ -14,7 +14,7 @@ services:
       DB_PASSWORD: pf3password
 
   db:
-    image: mysql:8
+    image: mysql:8.0.45-bookworm
     restart: always
     environment:
       MYSQL_ROOT_PASSWORD: rootpassword
