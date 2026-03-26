@@ -8,7 +8,7 @@ WORKDIR /app
 COPY . /app
 
 # Install only runtime dependencies compatible with container builds
-RUN pip install --no-cache-dir -r requirements.docker.txt
+RUN pip install --no-cache-dir -r requirements.txt
 
 # Make container app port available
 EXPOSE 8180
