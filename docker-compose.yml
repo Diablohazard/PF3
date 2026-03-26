@@ -1,14 +1,29 @@
-version: '3.8'
-
 services:
   app:
-    image: your-image-name
-    build:
-      context: .
-      dockerfile: Dockerfile
+    build: .
+    restart: always
     ports:
-      - "8080:80"
+      - "8180:8080"
+    depends_on:
+      - db
     environment:
-      - ENV_VAR_NAME=value
+      DB_HOST: db
+      DB_PORT: 8181
+      DB_NAME: pf3
+      DB_USER: pf3user
+      DB_PASSWORD: pf3password
+
+  db:
+    image: mysql:8
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpassword
+      MYSQL_DATABASE: pf3
+      MYSQL_USER: pf3user
+      MYSQL_PASSWORD: pf3password
+    ports:
+      - "8181:3306"
     volumes:
-      - ./app:/app
+      - db_data:/var/lib/mysql
+volumes:
+  db_data:
