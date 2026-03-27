@@ -160,24 +160,21 @@
                 method: 'POST',
                 body: formData
             })
-            .then(r => r.json())
+            .then(async r => {
+                const data = await r.json();
+                if (!r.ok) {
+                    throw new Error(data.message || "Erreur lors de l'enregistrement.");
+                }
+                return data;
+            })
             .then(data => {
                 if (data.success) {
-                    const table = document.getElementById('maintenanceTable');
-                    const row = table.insertRow(-1);
-                    const cellDate = row.insertCell(0);
-                    const cellComment = row.insertCell(1);
-                    cellDate.textContent = data.date;
-                    cellComment.textContent = data.commentaire;
-                    document.getElementById('maintenanceModal').style.display = 'none';
-                    document.getElementById('maintenanceForm').reset();
-                    const maintenanceAccordionContent = document.querySelectorAll('.accordion-content')[2];
-                    maintenanceAccordionContent.style.maxHeight = maintenanceAccordionContent.scrollHeight + 'px';
+                    window.location.reload();
                 } else {
-                    alert("Erreur lors de l'enregistrement.");
+                    alert(data.message || "Erreur lors de l'enregistrement.");
                 }
             })
-            .catch(() => alert("Erreur de connexion au serveur."));
+            .catch(error => alert(error.message || "Erreur de connexion au serveur."));
         };
     </script>
 </body>

@@ -1,4 +1,6 @@
 import os
+from datetime import datetime
+
 import mysql.connector
 from dotenv import load_dotenv
 from flask import Flask, render_template, request, redirect, url_for, jsonify
@@ -18,24 +20,70 @@ def get_db_connection():
     )
 
 
+def get_intervention_table_name(cursor):
+    cursor.execute(
+        """
+        SELECT TABLE_NAME
+        FROM information_schema.TABLES
+        WHERE TABLE_SCHEMA = DATABASE()
+          AND TABLE_NAME IN ('Intervention', 'intervention')
+        ORDER BY CASE WHEN TABLE_NAME = 'Intervention' THEN 0 ELSE 1 END
+        LIMIT 1
+        """
+    )
+    row = cursor.fetchone()
+
+    if row:
+        return row[0]
+
+    return "Intervention"
+
+
+def ensure_intervention_table(cursor, table_name):
+    cursor.execute(
+        f"""
+        CREATE TABLE IF NOT EXISTS `{table_name}` (
+            id_inter INT AUTO_INCREMENT PRIMARY KEY,
+            nom VARCHAR(255) NOT NULL,
+            horodatage DATETIME NOT NULL
+        )
+        """
+    )
+
+
+def parse_horodatage(date_value):
+    return datetime.strptime(date_value, "%Y-%m-%d")
+
+
 def enregistrer_intervention(nom, horodatage):
     conn = get_db_connection()
     cursor = conn.cursor()
-    sql = "INSERT INTO intervention (nom, horodatage) VALUES (%s, %s)"
-    cursor.execute(sql, (nom, horodatage))
-    conn.commit()
-    cursor.close()
-    conn.close()
+
+    try:
+        table_name = get_intervention_table_name(cursor)
+        ensure_intervention_table(cursor, table_name)
+        sql = f"INSERT INTO `{table_name}` (nom, horodatage) VALUES (%s, %s)"
+        cursor.execute(sql, (nom, horodatage))
+        conn.commit()
+    finally:
+        cursor.close()
+        conn.close()
 
 
 def recuperer_interventions():
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
-    cursor.execute("SELECT nom, horodatage FROM intervention ORDER BY horodatage DESC")
-    data = cursor.fetchall()
-    cursor.close()
-    conn.close()
-    return data
+    table_cursor = conn.cursor()
+
+    try:
+        table_name = get_intervention_table_name(table_cursor)
+        ensure_intervention_table(table_cursor, table_name)
+        cursor.execute(f"SELECT nom, horodatage FROM `{table_name}` ORDER BY horodatage DESC")
+        return cursor.fetchall()
+    finally:
+        table_cursor.close()
+        cursor.close()
+        conn.close()
 
 # On définit les identifiants pour les deux types d'utilisateurs
 USERS = {
@@ -78,10 +126,21 @@ def dashboard_op():
 
 @app.route("/planifier_maintenance", methods=["POST"])
 def planifier_maintenance():
-    date = request.form.get("date_maintenance")
-    commentaire = request.form.get("commentaire")
-    enregistrer_intervention(commentaire, date)
-    return jsonify({"success": True, "date": date, "commentaire": commentaire})
+    date = (request.form.get("date_maintenance") or "").strip()
+    commentaire = (request.form.get("commentaire") or "").strip()
+
+    if not date or not commentaire:
+        return jsonify({"success": False, "message": "Date et commentaire obligatoires."}), 400
+
+    try:
+        horodatage = parse_horodatage(date)
+        enregistrer_intervention(commentaire, horodatage)
+    except ValueError:
+        return jsonify({"success": False, "message": "Format de date invalide."}), 400
+    except mysql.connector.Error as exc:
+        return jsonify({"success": False, "message": str(exc)}), 500
+
+    return jsonify({"success": True})
 
 @app.route("/responsable")
 def dashboard_resp():
