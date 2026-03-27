@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title>Dashboard - Admin</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+
+    <style>
+        .accordion {
+            margin-bottom: 24px;
+        }
+
+        .accordion-item {
+            margin-bottom: 24px;
+        }
+
+        #maintenanceTable {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 30px 10px;
+        }
+
+        #maintenanceTable th, #maintenanceTable td {
+            padding: 12px 24px;
+            text-align: left;
+            font-size: 1.1em;
+        }
+
+        #maintenanceTable th {
+            background: #e8f6ef;
+        }
+
+        #maintenanceTable tr:not(:first-child) {
+            background: #f9f9f9;
+        }
+    </style>
+</head>
+
+<body>
+
+<header style="background: #cffbcd; color: rgb(0, 0, 0); display: flex; align-items: center; justify-content: space-between; padding: 10px;">
+    <div style="flex: 1; text-align: left;">
+        <form action="/" method="get" style="display: inline;">
+            <button type="submit" style="background: rgb(0, 0, 0); color: #fcfcfc; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer;">
+                Déconnexion
+            </button>
+        </form>
+    </div>
+
+    <div style="flex: 1; text-align: center; font-weight: bold;">
+        ADMINISTRATEUR
+    </div>
+
+    <div style="flex: 1; text-align: right;" id="datetime"></div>
+</header>
+
+<div class="container">
+
+    <div class="accordion">
+
+
+        <!-- Historique -->
+        <div class="accordion-item">
+            <button class="accordion-header">Historique des commandes</button>
+            <div class="accordion-content">
+                <p>Contenu historique...</p>
+            </div>
+        </div>
+
+        <!-- Consommation -->
+        <div class="accordion-item">
+            <button class="accordion-header">Suivi des consommations électriques</button>
+            <div class="accordion-content">
+                <div class="charts">
+                    <div class="chart">Graphique 1</div>
+                    <div class="chart">Graphique 2</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Maintenance -->
+        <div class="accordion-item">
+            <button class="accordion-header">Opérations de maintenance planifiées</button>
+            <div class="accordion-content">
+                <div class="maintenance">
+                    <table id="maintenanceTable">
+                        <tr>
+                            <th>Date</th>
+                            <th>Commentaire</th>
+                        </tr>
+                    </table>
+                    <button id="openModalBtn">BP Planifier</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Modal -->
+        <div id="maintenanceModal" style="display:none; position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.5); align-items:center; justify-content:center;">
+            <div style="background:rgb(202, 198, 198); padding:20px; border-radius:8px; min-width:300px; position:relative;">
+                <h3>Planifier une maintenance</h3>
+                <form id="maintenanceForm" method="post" action="/planifier_maintenance">
+                    <label for="date_maintenance">Date :</label>
+                    <input type="date" id="date_maintenance" name="date_maintenance" required><br><br>
+
+                    <label for="commentaire">Commentaire :</label>
+                    <input type="text" id="commentaire" name="commentaire" required><br><br>
+
+                    <button type="submit">Enregistrer</button>
+                    <button type="button" id="closeModalBtn" style="margin-left:10px;">Annuler</button>
+                </form>
+            </div>
+        </div>
+
+
+        <!-- R (NOUVELLE SECTION) -->
+        <!-- 🔥 CRÉER UN UTILISATEUR (NOUVELLE SECTION) -->
+        <div class="accordion-item">
+            <button class="accordion-header">Créer un utilisateur</button>
+            <div class="accordion-content">
+
+                <form method="POST" action="/create_user">
+
+                    <label for="new_username">Nom d'utilisateur :</label><br>
+                    <input type="text" id="new_username" name="new_username" required><br><br>
+
+                    <label for="new_password">Mot de passe :</label><br>
+                    <input type="password" id="new_password" name="new_password" required><br><br>
+
+                    <button type="submit">Créer l'utilisateur</button>
+
+                </form>
+
+                {% if message %}
+                    <p style="color: green;">{{ message }}</p>
+                {% endif %}
+
+            </div>
+        </div>
+
+    </div> <!-- fin accordion -->
+
+</div> <!-- fin container -->
+
+
+<script>
+    function updateDateTime() {
+        const now = new Date();
+        const date = now.toLocaleDateString('fr-FR');
+        const time = now.toLocaleTimeString('fr-FR');
+        document.getElementById("datetime").innerHTML = date + " " + time;
+    }
+    setInterval(updateDateTime, 1000);
+    updateDateTime();
+</script>
+
+<script>
+    const headers = document.querySelectorAll(".accordion-header");
+
+    headers.forEach(header => {
+        header.addEventListener("click", () => {
+            const content = header.nextElementSibling;
+
+            if (content.style.maxHeight) {
+                content.style.maxHeight = null;
+            } else {
+                content.style.maxHeight = content.scrollHeight + "px";
+            }
+        });
+    });
+</script>
+
+<script>
+    document.getElementById('openModalBtn').onclick = function() {
+        document.getElementById('maintenanceModal').style.display = 'flex';
+    };
+    document.getElementById('closeModalBtn').onclick = function() {
+        document.getElementById('maintenanceModal').style.display = 'none';
+    };
+    document.getElementById('maintenanceForm').onsubmit = function(e) {
+        e.preventDefault();
+        const date = document.getElementById('date_maintenance').value;
+        const commentaire = document.getElementById('commentaire').value;
+        const table = document.getElementById('maintenanceTable');
+        const row = table.insertRow(-1);
+        row.insertCell(0).textContent = date;
+        row.insertCell(1).textContent = commentaire;
+        document.getElementById('maintenanceModal').style.display = 'none';
+        document.getElementById('maintenanceForm').reset();
+
+        const maintenanceAccordionContent = document.querySelectorAll('.accordion-content')[2];
+        maintenanceAccordionContent.style.maxHeight = maintenanceAccordionContent.scrollHeight + "px";
+    };
+</script>
+
+</body>
+</html>
