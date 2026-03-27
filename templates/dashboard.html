@@ -155,26 +155,29 @@
         };
         document.getElementById('maintenanceForm').onsubmit = function(e) {
             e.preventDefault();
-            // Récupère les valeurs
-            const date = document.getElementById('date_maintenance').value;
-            const commentaire = document.getElementById('commentaire').value;
-            // Ajoute une ligne au tableau
-            const table = document.getElementById('maintenanceTable');
-            const row = table.insertRow(-1);
-            const cellDate = row.insertCell(0);
-            const cellComment = row.insertCell(1);
-            cellDate.textContent = date;
-            cellComment.textContent = commentaire;
-            // Ferme la popup
-            document.getElementById('maintenanceModal').style.display = 'none';
-            // Réinitialise le formulaire
-            document.getElementById('maintenanceForm').reset();
-        
-            // Ouvre/agrandit automatiquement le feuillet maintenance
-            // 1. Trouve le contenu de l’accordion maintenance
-            const maintenanceAccordionContent = document.querySelectorAll('.accordion-content')[2];
-            // 2. Met à jour la hauteur
-            maintenanceAccordionContent.style.maxHeight = maintenanceAccordionContent.scrollHeight + "px";
+            const formData = new FormData(this);
+            fetch('/planifier_maintenance', {
+                method: 'POST',
+                body: formData
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    const table = document.getElementById('maintenanceTable');
+                    const row = table.insertRow(-1);
+                    const cellDate = row.insertCell(0);
+                    const cellComment = row.insertCell(1);
+                    cellDate.textContent = data.date;
+                    cellComment.textContent = data.commentaire;
+                    document.getElementById('maintenanceModal').style.display = 'none';
+                    document.getElementById('maintenanceForm').reset();
+                    const maintenanceAccordionContent = document.querySelectorAll('.accordion-content')[2];
+                    maintenanceAccordionContent.style.maxHeight = maintenanceAccordionContent.scrollHeight + 'px';
+                } else {
+                    alert("Erreur lors de l'enregistrement.");
+                }
+            })
+            .catch(() => alert("Erreur de connexion au serveur."));
         };
     </script>
 </body>
