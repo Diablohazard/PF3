@@ -155,26 +155,26 @@
         };
         document.getElementById('maintenanceForm').onsubmit = function(e) {
             e.preventDefault();
-            // Récupère les valeurs
-            const date = document.getElementById('date_maintenance').value;
-            const commentaire = document.getElementById('commentaire').value;
-            // Ajoute une ligne au tableau
-            const table = document.getElementById('maintenanceTable');
-            const row = table.insertRow(-1);
-            const cellDate = row.insertCell(0);
-            const cellComment = row.insertCell(1);
-            cellDate.textContent = date;
-            cellComment.textContent = commentaire;
-            // Ferme la popup
-            document.getElementById('maintenanceModal').style.display = 'none';
-            // Réinitialise le formulaire
-            document.getElementById('maintenanceForm').reset();
-        
-            // Ouvre/agrandit automatiquement le feuillet maintenance
-            // 1. Trouve le contenu de l’accordion maintenance
-            const maintenanceAccordionContent = document.querySelectorAll('.accordion-content')[2];
-            // 2. Met à jour la hauteur
-            maintenanceAccordionContent.style.maxHeight = maintenanceAccordionContent.scrollHeight + "px";
+            const formData = new FormData(this);
+            fetch('/planifier_maintenance', {
+                method: 'POST',
+                body: formData
+            })
+            .then(async r => {
+                const data = await r.json();
+                if (!r.ok) {
+                    throw new Error(data.message || "Erreur lors de l'enregistrement.");
+                }
+                return data;
+            })
+            .then(data => {
+                if (data.success) {
+                    window.location.reload();
+                } else {
+                    alert(data.message || "Erreur lors de l'enregistrement.");
+                }
+            })
+            .catch(error => alert(error.message || "Erreur de connexion au serveur."));
         };
     </script>
 </body>
