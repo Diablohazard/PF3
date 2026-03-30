@@ -57,6 +57,8 @@
         RESPONSABLE
         {% elif session.get('role') == 'Integ' %}
         INTEGRATEUR
+        {% elif session.get('role') == 'Admin' %}
+        ADMINISTRATEUR
         {% else %}
         OPERATEUR
         {% endif %}
@@ -68,7 +70,9 @@
 
     {% set is_responsable = session.get('role') == 'Respo' %}
     {% set is_integrateur = session.get('role') == 'Integ' %}
-    {% set can_view_responsable_sections = is_responsable or is_integrateur %}
+    {% set is_admin = session.get('role') == 'Admin' %}
+    {% set can_view_integrateur_sections = is_integrateur or is_admin %}
+    {% set can_view_responsable_sections = is_responsable or is_integrateur or is_admin %}
 
     <div class="accordion">
 
@@ -135,7 +139,7 @@
         </div>
 
         <!-- Historique de charge (spécifique intégrateur) -->
-        <div class="accordion-item" {% if not is_integrateur %}hidden{% endif %}>
+        <div class="accordion-item" {% if not can_view_integrateur_sections %}hidden{% endif %}>
             <button class="accordion-header">Historique de charge</button>
             <div class="accordion-content">
                 <div style="display: flex; gap: 10px; margin-top: 10px; align-items: flex-start;">
@@ -179,7 +183,7 @@
         </div>
 
         <!-- Paramétrage des alertes (spécifique intégrateur) -->
-        <div class="accordion-item" {% if not is_integrateur %}hidden{% endif %}>
+        <div class="accordion-item" {% if not can_view_integrateur_sections %}hidden{% endif %}>
             <button class="accordion-header">Paramétrage des alertes</button>
             <div class="accordion-content">
                 <div style="padding: 15px;">
@@ -202,6 +206,72 @@
                                 <td style="padding: 12px;">90 %</td>
                                 <td style="padding: 12px;">Active</td>
                             </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Nouveau rôle (spécifique administrateur) -->
+        <div class="accordion-item" {% if not is_admin %}hidden{% endif %}>
+            <button class="accordion-header">Nouveau role</button>
+            <div class="accordion-content">
+                <div style="padding: 15px;">
+                    <form id="adminUserForm" method="post" action="/create_user" style="display: grid; grid-template-columns: repeat(2, minmax(220px, 1fr)); gap: 16px; align-items: end;">
+                        <div>
+                            <label for="nom">Nom</label><br>
+                            <input type="text" id="nom" name="nom" required style="width: 100%; padding: 8px;">
+                        </div>
+                        <div>
+                            <label for="prenom">Prénom</label><br>
+                            <input type="text" id="prenom" name="prenom" required style="width: 100%; padding: 8px;">
+                        </div>
+                        <div>
+                            <label for="identifiant">Identifiant</label><br>
+                            <input type="text" id="identifiant" name="identifiant" required style="width: 100%; padding: 8px;">
+                        </div>
+                        <div>
+                            <label for="mot_de_passe">Mot de passe</label><br>
+                            <input type="password" id="mot_de_passe" name="mot_de_passe" required style="width: 100%; padding: 8px;">
+                        </div>
+                        <div>
+                            <label for="role">Choix du role</label><br>
+                            <select id="role" name="role" required style="width: 100%; padding: 8px;">
+                                <option value="" disabled selected>Sélectionner un rôle</option>
+                                {% for role_key, role_label in available_roles.items() %}
+                                <option value="{{ role_key }}">{{ role_label }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div>
+                            <button type="submit" id="adminUserSubmitBtn">Validation</button>
+                        </div>
+                    </form>
+
+                    <p id="adminUserMessage" style="margin-top: 16px;"></p>
+
+                    <table id="adminUsersTable" style="width: 100%; border-collapse: collapse; margin-top: 20px; background: white;">
+                        <thead>
+                            <tr style="background-color: #f3f4f6; border-bottom: 2px solid #e5e7eb;">
+                                <th style="padding: 12px; text-align: left;">Nom</th>
+                                <th style="padding: 12px; text-align: left;">Prénom</th>
+                                <th style="padding: 12px; text-align: left;">Identifiant</th>
+                                <th style="padding: 12px; text-align: left;">Rôle</th>
+                            </tr>
+                        </thead>
+                        <tbody id="adminUsersTableBody">
+                            {% for user in registered_users %}
+                            <tr style="border-bottom: 1px solid #eee; color: black;">
+                                <td style="padding: 12px;">{{ user.nom }}</td>
+                                <td style="padding: 12px;">{{ user.prenom }}</td>
+                                <td style="padding: 12px;">{{ user.identifiant }}</td>
+                                <td style="padding: 12px;">{{ user.role_label }}</td>
+                            </tr>
+                            {% else %}
+                            <tr id="adminUsersEmptyRow" style="color: black;">
+                                <td colspan="4" style="padding: 12px; text-align: center;">Aucun utilisateur enregistré.</td>
+                            </tr>
+                            {% endfor %}
                         </tbody>
                     </table>
                 </div>
@@ -287,6 +357,9 @@
         const idInput = document.getElementById('id_inter');
         const saveMaintenanceBtn = document.getElementById('saveMaintenanceBtn');
         const modalTitle = maintenanceModal ? maintenanceModal.querySelector('h3') : null;
+        const adminUserForm = document.getElementById('adminUserForm');
+        const adminUsersTableBody = document.getElementById('adminUsersTableBody');
+        const adminUserMessage = document.getElementById('adminUserMessage');
 
         function escapeHtml(text) {
             return String(text)
@@ -294,6 +367,29 @@
                 .replace(/</g, '&lt;')
                 .replace(/>/g, '&gt;')
                 .replace(/"/g, '&quot;');
+        }
+
+        function renderAdminUsers(users) {
+            if (!adminUsersTableBody) return;
+
+            adminUsersTableBody.innerHTML = '';
+
+            if (!users || users.length === 0) {
+                adminUsersTableBody.innerHTML = '<tr id="adminUsersEmptyRow" style="color: black;"><td colspan="4" style="padding: 12px; text-align: center;">Aucun utilisateur enregistré.</td></tr>';
+                return;
+            }
+
+            users.forEach(user => {
+                const tr = document.createElement('tr');
+                tr.style.borderBottom = '1px solid #eee';
+                tr.style.color = 'black';
+                tr.innerHTML =
+                    `<td style="padding: 12px;">${escapeHtml(user.nom)}</td>` +
+                    `<td style="padding: 12px;">${escapeHtml(user.prenom)}</td>` +
+                    `<td style="padding: 12px;">${escapeHtml(user.identifiant)}</td>` +
+                    `<td style="padding: 12px;">${escapeHtml(user.role_label || user.role)}</td>`;
+                adminUsersTableBody.appendChild(tr);
+            });
         }
 
         function refreshMaintenanceTable() {
@@ -411,6 +507,42 @@
                         }
                     })
                     .catch(error => alert(error.message || 'Erreur de connexion au serveur.'));
+            };
+        }
+
+        if (adminUserForm && adminUsersTableBody && adminUserMessage) {
+            adminUserForm.onsubmit = function(e) {
+                e.preventDefault();
+                adminUserMessage.textContent = '';
+                adminUserMessage.style.color = '';
+
+                const formData = new FormData(this);
+
+                fetch(this.action, { method: 'POST', body: formData })
+                    .then(async r => {
+                        const data = await r.json();
+                        if (!r.ok) throw new Error(data.message || 'Erreur lors de la création de l\'utilisateur.');
+                        return data;
+                    })
+                    .then(data => {
+                        if (!data.success) {
+                            throw new Error(data.message || 'Erreur lors de la création de l\'utilisateur.');
+                        }
+
+                        renderAdminUsers(data.users || []);
+                        adminUserMessage.textContent = data.message || 'Utilisateur créé avec succès !';
+                        adminUserMessage.style.color = 'green';
+                        adminUserForm.reset();
+
+                        const adminContent = adminUserForm.closest('.accordion-content');
+                        if (adminContent && adminContent.style.maxHeight) {
+                            adminContent.style.maxHeight = adminContent.scrollHeight + 'px';
+                        }
+                    })
+                    .catch(error => {
+                        adminUserMessage.textContent = error.message || 'Erreur de connexion au serveur.';
+                        adminUserMessage.style.color = 'red';
+                    });
             };
         }
     </script>

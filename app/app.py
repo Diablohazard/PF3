@@ -1,6 +1,7 @@
 import os
 import hashlib
 import hmac
+import json
 from datetime import datetime
  
 import mysql.connector
@@ -127,10 +128,18 @@ def supprimer_intervention(id_inter):
 
 
 def can_manage_maintenance():
-    return session.get("logged_in") and session.get("role") in ("Respo", "Integ")
+    return session.get("logged_in") and session.get("role") in ("Respo", "Integ", "Admin")
  
 AUTH_PEPPER = os.getenv("AUTH_PEPPER", "dev-pepper-change-me")
 SCRYPT_PARAMS = {"n": 2**14, "r": 8, "p": 1, "dklen": 64}
+AVAILABLE_ROLES = {
+    "Operat": "Opérateur",
+    "Respo": "Responsable",
+    "Integ": "Intégrateur",
+    "Admin": "Administrateur",
+}
+DEFAULT_USER_IDENTIFIANTS = {"Operat", "Respo", "Integ", "Admin"}
+USERS_FILE_PATH = os.path.join(os.path.dirname(__file__), "../users.json")
 
 # Identifiants stockés sous forme hachée (scrypt salé + poivré)
 USERS_HASHED = [
@@ -171,8 +180,44 @@ def scrypt_hex(value, salt_hex, purpose):
     return hashlib.scrypt(payload, salt=salt, **SCRYPT_PARAMS).hex()
 
 
+def load_registered_users():
+    if not os.path.exists(USERS_FILE_PATH):
+        return []
+
+    try:
+        with open(USERS_FILE_PATH, "r", encoding="utf-8") as f:
+            data = json.load(f)
+    except (OSError, json.JSONDecodeError):
+        return []
+
+    return data if isinstance(data, list) else []
+
+
+def save_registered_users(users):
+    with open(USERS_FILE_PATH, "w", encoding="utf-8") as f:
+        json.dump(users, f, ensure_ascii=False, indent=2)
+
+
+def serialize_registered_users(users=None):
+    users = load_registered_users() if users is None else users
+    return [
+        {
+            "nom": user.get("nom", ""),
+            "prenom": user.get("prenom", ""),
+            "identifiant": user.get("identifiant", ""),
+            "role": user.get("role", ""),
+            "role_label": AVAILABLE_ROLES.get(user.get("role", ""), user.get("role", "")),
+        }
+        for user in users
+    ]
+
+
+def get_all_auth_accounts():
+    return USERS_HASHED + load_registered_users()
+
+
 def authenticate_user(username, password):
-    for account in USERS_HASHED:
+    for account in get_all_auth_accounts():
         expected_username_hash = account["username_hash"]
         computed_username_hash = scrypt_hex(username, account["username_salt"], "username")
 
@@ -240,7 +285,13 @@ def dashboard_op():
     if not session.get("logged_in"):
         return redirect(url_for("login"))
     interventions = recuperer_interventions()
-    return render_template("dashboard_operateur.html", interventions=interventions, role=session.get("role"))
+    return render_template(
+        "dashboard_operateur.html",
+        interventions=interventions,
+        role=session.get("role"),
+        registered_users=serialize_registered_users(),
+        available_roles=AVAILABLE_ROLES,
+    )
  
  
 @app.route("/planifier_maintenance", methods=["POST"])
@@ -348,24 +399,54 @@ def dashboard_integ():
 # Route pour la page d'administration
 @app.route("/admin", methods=["GET", "POST"])
 def admin():
-    return render_template("admin.html")
+    if not session.get("logged_in"):
+        return redirect(url_for("login"))
+    return redirect(url_for("dashboard_op"))
  
 # Route pour créer un nouvel utilisateur (pour l'instant, on enregistre dans un fichier)
 @app.route("/create_user", methods=["POST"])
 def create_user():
-    username = request.form["new_username"]
-    password = request.form["new_password"]
-    hashed = build_hashed_credentials(username, password)
- 
-    # Enregistrement dans le fichier users.txt à la racine du projet
-    users_file_path = os.path.join(os.path.dirname(__file__), "../users.txt")
-    with open(users_file_path, "a") as f:
-        f.write(
-            f"{hashed['username_salt']}:{hashed['username_hash']}:"
-            f"{hashed['password_salt']}:{hashed['password_hash']}\n"
-        )
- 
-    return render_template("admin.html", message="Utilisateur créé avec succès !")
+    if not session.get("logged_in") or session.get("role") != "Admin":
+        return jsonify({"success": False, "message": "Accès refusé."}), 403
+
+    nom = (request.form.get("nom") or "").strip()
+    prenom = (request.form.get("prenom") or "").strip()
+    identifiant = (request.form.get("identifiant") or "").strip()
+    password = (request.form.get("mot_de_passe") or "").strip()
+    role = (request.form.get("role") or "").strip()
+
+    if not nom or not prenom or not identifiant or not password or not role:
+        return jsonify({"success": False, "message": "Tous les champs sont obligatoires."}), 400
+
+    if role not in AVAILABLE_ROLES:
+        return jsonify({"success": False, "message": "Rôle invalide."}), 400
+
+    registered_users = load_registered_users()
+    existing_identifiants = {user.get("identifiant", "").casefold() for user in registered_users}
+    reserved_identifiants = {ident.casefold() for ident in DEFAULT_USER_IDENTIFIANTS}
+
+    if identifiant.casefold() in existing_identifiants or identifiant.casefold() in reserved_identifiants:
+        return jsonify({"success": False, "message": "Cet identifiant existe déjà."}), 409
+
+    hashed = build_hashed_credentials(identifiant, password)
+    registered_users.append(
+        {
+            "nom": nom,
+            "prenom": prenom,
+            "identifiant": identifiant,
+            "role": role,
+            **hashed,
+        }
+    )
+    save_registered_users(registered_users)
+
+    return jsonify(
+        {
+            "success": True,
+            "message": "Utilisateur créé avec succès !",
+            "users": serialize_registered_users(registered_users),
+        }
+    )
  
 # --- TOUJOURS À LA FIN DU FICHIER ---
 if __name__ == "__main__":
