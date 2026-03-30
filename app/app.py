@@ -1,7 +1,4 @@
 import os
-import hashlib
-import hmac
-import json
 from datetime import datetime
  
 import mysql.connector
@@ -130,124 +127,190 @@ def supprimer_intervention(id_inter):
 def can_manage_maintenance():
     return session.get("logged_in") and session.get("role") in ("Respo", "Integ", "Admin")
  
-AUTH_PEPPER = os.getenv("AUTH_PEPPER", "dev-pepper-change-me")
-SCRYPT_PARAMS = {"n": 2**14, "r": 8, "p": 1, "dklen": 64}
 AVAILABLE_ROLES = {
     "Operat": "Opérateur",
     "Respo": "Responsable",
     "Integ": "Intégrateur",
     "Admin": "Administrateur",
 }
-DEFAULT_USER_IDENTIFIANTS = {"Operat", "Respo", "Integ", "Admin"}
-USERS_FILE_PATH = os.path.join(os.path.dirname(__file__), "../users.json")
-
-# Identifiants stockés sous forme hachée (scrypt salé + poivré)
-USERS_HASHED = [
-    {
-        "role": "Operat",
-        "username_salt": "b84a49226efe6de60ea68eca437f9993",
-        "username_hash": "b86c25dd254b20ba49c0c673edcfac925fa26e792d6315fbfbd5be54b43f30b2bf99b6ee70f3515c78ed78f691a94f4c5ae01e39d019c3084f4f0474eeb2cc88",
-        "password_salt": "3927ff3bdfd63b619ee5c15ad827fc0e",
-        "password_hash": "c72d57bb5e33086600ae39437d814e207127196a80e09592b744d9f032e797e7895c37e901c54ebf2da75557d8ad84d9d71b7d0cdb84ed0a17d11851f18bef0d",
-    },
-    {
-        "role": "Respo",
-        "username_salt": "47c580670c1f28c1f4ee370435db56eb",
-        "username_hash": "3d6a7163fb861b2ae13f7e95ca131f996bb044f54977863eaf7e8d12b852c72ca3ac67b21f94fff082339ec9f9ff04ea7c1146f90f77018e951823ac0be189dc",
-        "password_salt": "e808fee4bae9b64d6527eed397ac853f",
-        "password_hash": "1c5c499b7ad867aa7e502a246064fa8089acf3e98610bd1dd59c3c5a1115c471b1b523ca31daac38a6d7ceadd09ea7073dcf1d1b07c592c8b6a01cf4f4b58729",
-    },
-    {
-        "role": "Integ",
-        "username_salt": "3d88b1505e0d69bfa615d82b5d68ffe0",
-        "username_hash": "2499c728f0b6456fa397421f25796005d454a9e81fc1046b6cfda7f3eba794892d6675b9239b83b7fd81ebb6d8830ccbe8178c88649140841d3049a00a885e38",
-        "password_salt": "b08734f827c86bc5b57f54b1860d412a",
-        "password_hash": "d6d23fa77df8d0ba06874568bf6a18165f2c8fa0488eaef7373c33f04bcd05576f13480b8a7302892b5842aee621354f585f92b6b1d3051af93f5779f360869e",
-    },
-    {
-        "role": "Admin",
-        "username_salt": "0b96e3b2cf350a8979964b8bebec32b5",
-        "username_hash": "821d36427abda02b2f1b2f5b2736aeb029594a1dfd479952a3e87a687ceecbd4ee1a41919ebfd0837468c3d803ed47ae8f049455d33a1d3db0b3f65a79847cfe",
-        "password_salt": "8461eaf628a1bace8462d1482e966ba0",
-        "password_hash": "d1b04cf2bc715a86280a9bf8b7e57f06352b98f51ae86b823f1cb8c7ffb2a83c08397a0e15b9131e8165da8442136e916afe64a4be9c3e80f1bb315a01e10667",
-    },
-]
+BOOTSTRAP_ADMIN_LOGIN = "Admin"
+BOOTSTRAP_ADMIN_PASSWORD = "administrator"
 
 
-def scrypt_hex(value, salt_hex, purpose):
-    salt = bytes.fromhex(salt_hex)
-    payload = f"{purpose}:{value}:{AUTH_PEPPER}".encode("utf-8")
-    return hashlib.scrypt(payload, salt=salt, **SCRYPT_PARAMS).hex()
+def get_users_table_name(cursor):
+    cursor.execute(
+        """
+        SELECT TABLE_NAME
+        FROM information_schema.TABLES
+        WHERE TABLE_SCHEMA = DATABASE()
+          AND TABLE_NAME IN ('Users', 'users')
+        ORDER BY CASE WHEN TABLE_NAME = 'Users' THEN 0 ELSE 1 END
+        LIMIT 1
+        """
+    )
+    row = cursor.fetchone()
+    return row[0] if row else "Users"
 
 
-def load_registered_users():
-    if not os.path.exists(USERS_FILE_PATH):
-        return []
+def get_roles_table_name(cursor):
+    cursor.execute(
+        """
+        SELECT TABLE_NAME
+        FROM information_schema.TABLES
+        WHERE TABLE_SCHEMA = DATABASE()
+          AND TABLE_NAME IN ('roles', 'Roles')
+        ORDER BY CASE WHEN TABLE_NAME = 'roles' THEN 0 ELSE 1 END
+        LIMIT 1
+        """
+    )
+    row = cursor.fetchone()
+    return row[0] if row else "roles"
+
+
+def ensure_roles_table(cursor, table_name):
+    cursor.execute(
+        f"""
+        CREATE TABLE IF NOT EXISTS `{table_name}` (
+            id_role INT AUTO_INCREMENT PRIMARY KEY,
+            nom VARCHAR(50) UNIQUE NOT NULL
+        )
+        """
+    )
+
+
+def ensure_users_table(cursor, users_table_name, roles_table_name):
+    cursor.execute(
+        f"""
+        CREATE TABLE IF NOT EXISTS `{users_table_name}` (
+            id_user INT AUTO_INCREMENT PRIMARY KEY,
+            prenom VARCHAR(50) NOT NULL,
+            nom VARCHAR(50) NOT NULL,
+            login VARCHAR(50) UNIQUE NOT NULL,
+            password VARCHAR(50) NOT NULL,
+            id_role INT NULL,
+            CONSTRAINT fk_users_role FOREIGN KEY (id_role) REFERENCES `{roles_table_name}` (id_role)
+        )
+        """
+    )
+
+
+def ensure_user_management_tables(cursor):
+    roles_table_name = get_roles_table_name(cursor)
+    ensure_roles_table(cursor, roles_table_name)
+    users_table_name = get_users_table_name(cursor)
+    ensure_users_table(cursor, users_table_name, roles_table_name)
+    return users_table_name, roles_table_name
+
+
+def get_or_create_role_id(cursor, roles_table_name, role_name):
+    cursor.execute(f"SELECT id_role FROM `{roles_table_name}` WHERE nom = %s", (role_name,))
+    row = cursor.fetchone()
+    if row:
+        return row[0]
+
+    cursor.execute(f"INSERT INTO `{roles_table_name}` (nom) VALUES (%s)", (role_name,))
+    return cursor.lastrowid
+
+
+def fetch_registered_users():
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    table_cursor = conn.cursor()
 
     try:
-        with open(USERS_FILE_PATH, "r", encoding="utf-8") as f:
-            data = json.load(f)
-    except (OSError, json.JSONDecodeError):
-        return []
+        users_table_name, roles_table_name = ensure_user_management_tables(table_cursor)
+        cursor.execute(
+            f"""
+            SELECT u.prenom, u.nom, u.login, r.nom AS role
+            FROM `{users_table_name}` u
+            LEFT JOIN `{roles_table_name}` r ON r.id_role = u.id_role
+            ORDER BY u.nom ASC, u.prenom ASC, u.login ASC
+            """
+        )
+        users = cursor.fetchall()
+        return [
+            {
+                "nom": user["nom"],
+                "prenom": user["prenom"],
+                "identifiant": user["login"],
+                "role": user["role"] or "",
+                "role_label": AVAILABLE_ROLES.get(user["role"] or "", user["role"] or ""),
+            }
+            for user in users
+        ]
+    finally:
+        table_cursor.close()
+        cursor.close()
+        conn.close()
 
-    return data if isinstance(data, list) else []
 
+def get_registered_user_for_auth(login):
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    table_cursor = conn.cursor()
 
-def save_registered_users(users):
-    with open(USERS_FILE_PATH, "w", encoding="utf-8") as f:
-        json.dump(users, f, ensure_ascii=False, indent=2)
-
-
-def serialize_registered_users(users=None):
-    users = load_registered_users() if users is None else users
-    return [
-        {
-            "nom": user.get("nom", ""),
-            "prenom": user.get("prenom", ""),
-            "identifiant": user.get("identifiant", ""),
-            "role": user.get("role", ""),
-            "role_label": AVAILABLE_ROLES.get(user.get("role", ""), user.get("role", "")),
-        }
-        for user in users
-    ]
-
-
-def get_all_auth_accounts():
-    return USERS_HASHED + load_registered_users()
+    try:
+        users_table_name, roles_table_name = ensure_user_management_tables(table_cursor)
+        cursor.execute(
+            f"""
+            SELECT u.login, u.password, r.nom AS role
+            FROM `{users_table_name}` u
+            LEFT JOIN `{roles_table_name}` r ON r.id_role = u.id_role
+            WHERE LOWER(u.login) = LOWER(%s)
+            LIMIT 1
+            """,
+            (login,)
+        )
+        return cursor.fetchone()
+    finally:
+        table_cursor.close()
+        cursor.close()
+        conn.close()
 
 
 def authenticate_user(username, password):
-    for account in get_all_auth_accounts():
-        expected_username_hash = account["username_hash"]
-        computed_username_hash = scrypt_hex(username, account["username_salt"], "username")
+    if username == BOOTSTRAP_ADMIN_LOGIN and password == BOOTSTRAP_ADMIN_PASSWORD:
+        return "Admin"
 
-        if hmac.compare_digest(expected_username_hash, computed_username_hash):
-            expected_password_hash = account["password_hash"]
-            computed_password_hash = scrypt_hex(password, account["password_salt"], "password")
-            if hmac.compare_digest(expected_password_hash, computed_password_hash):
-                return account["role"]
-            return None
+    account = get_registered_user_for_auth(username)
+    if not account:
+        return None
 
-        # Compatibilité temporaire : anciennes entrées générées avec username/password inversés.
-        computed_username_hash_legacy = scrypt_hex(password, account["username_salt"], "username")
-        computed_password_hash_legacy = scrypt_hex(username, account["password_salt"], "password")
-        if hmac.compare_digest(expected_username_hash, computed_username_hash_legacy) and hmac.compare_digest(
-            account["password_hash"], computed_password_hash_legacy
-        ):
-            return account["role"]
+    if account["password"] != password:
+        return None
 
-    return None
+    role = account.get("role") or "Operat"
+    return role if role in AVAILABLE_ROLES else None
 
 
-def build_hashed_credentials(username, password):
-    username_salt = os.urandom(16).hex()
-    password_salt = os.urandom(16).hex()
-    return {
-        "username_salt": username_salt,
-        "username_hash": scrypt_hex(username, username_salt, "username"),
-        "password_salt": password_salt,
-        "password_hash": scrypt_hex(password, password_salt, "password"),
-    }
+def create_registered_user(nom, prenom, identifiant, password, role):
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    table_cursor = conn.cursor()
+
+    try:
+        users_table_name, roles_table_name = ensure_user_management_tables(table_cursor)
+        cursor.execute(
+            f"SELECT id_user FROM `{users_table_name}` WHERE LOWER(login) = LOWER(%s) LIMIT 1",
+            (identifiant,)
+        )
+        if cursor.fetchone() or identifiant.casefold() == BOOTSTRAP_ADMIN_LOGIN.casefold():
+            return False, "Cet identifiant existe déjà."
+
+        role_id = get_or_create_role_id(table_cursor, roles_table_name, role)
+        cursor.execute(
+            f"""
+            INSERT INTO `{users_table_name}` (prenom, nom, login, password, id_role)
+            VALUES (%s, %s, %s, %s, %s)
+            """,
+            (prenom, nom, identifiant, password, role_id)
+        )
+        conn.commit()
+        return True, "Utilisateur créé avec succès !"
+    finally:
+        table_cursor.close()
+        cursor.close()
+        conn.close()
  
 @app.route("/", methods=["GET", "POST"])
 def login():
@@ -289,7 +352,7 @@ def dashboard_op():
         "dashboard_operateur.html",
         interventions=interventions,
         role=session.get("role"),
-        registered_users=serialize_registered_users(),
+        registered_users=fetch_registered_users(),
         available_roles=AVAILABLE_ROLES,
     )
  
@@ -403,7 +466,7 @@ def admin():
         return redirect(url_for("login"))
     return redirect(url_for("dashboard_op"))
  
-# Route pour créer un nouvel utilisateur (pour l'instant, on enregistre dans un fichier)
+# Route pour créer un nouvel utilisateur
 @app.route("/create_user", methods=["POST"])
 def create_user():
     if not session.get("logged_in") or session.get("role") != "Admin":
@@ -421,30 +484,19 @@ def create_user():
     if role not in AVAILABLE_ROLES:
         return jsonify({"success": False, "message": "Rôle invalide."}), 400
 
-    registered_users = load_registered_users()
-    existing_identifiants = {user.get("identifiant", "").casefold() for user in registered_users}
-    reserved_identifiants = {ident.casefold() for ident in DEFAULT_USER_IDENTIFIANTS}
-
-    if identifiant.casefold() in existing_identifiants or identifiant.casefold() in reserved_identifiants:
-        return jsonify({"success": False, "message": "Cet identifiant existe déjà."}), 409
-
-    hashed = build_hashed_credentials(identifiant, password)
-    registered_users.append(
-        {
-            "nom": nom,
-            "prenom": prenom,
-            "identifiant": identifiant,
-            "role": role,
-            **hashed,
-        }
-    )
-    save_registered_users(registered_users)
+    try:
+        created, message = create_registered_user(nom, prenom, identifiant, password, role)
+        if not created:
+            return jsonify({"success": False, "message": message}), 409
+        users = fetch_registered_users()
+    except mysql.connector.Error as exc:
+        return jsonify({"success": False, "message": str(exc)}), 500
 
     return jsonify(
         {
             "success": True,
-            "message": "Utilisateur créé avec succès !",
-            "users": serialize_registered_users(registered_users),
+            "message": message,
+            "users": users,
         }
     )
  
