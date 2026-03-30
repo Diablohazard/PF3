@@ -273,7 +273,7 @@ def login():
                 return redirect(url_for("dashboard_op"))
 
             elif role == "Admin":
-                return redirect(url_for("admin"))
+                return redirect(url_for("dashboard_op"))
         
         else:
             error = "Identifiants incorrects"
