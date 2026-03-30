@@ -344,7 +344,7 @@ def fetch_registered_users():
         select_id_role = ", u.id_role" if "id_role" in users_columns else ""
         cursor.execute(
             f"""
-            SELECT u.id_user, u.prenom, u.nom, u.login{select_id_role}
+            SELECT u.id_user, u.prenom, u.nom, u.login, u.password{select_id_role}
             FROM `{users_table_name}` u
             ORDER BY u.nom ASC, u.prenom ASC, u.login ASC
             """
@@ -365,6 +365,7 @@ def fetch_registered_users():
                     "nom": user["nom"],
                     "prenom": user["prenom"],
                     "identifiant": user["login"],
+                    "mot_de_passe": user.get("password", ""),
                     "role": role_name,
                     "role_label": get_role_label(role_name),
                 }
@@ -485,6 +486,49 @@ def update_registered_user_role(identifiant, role):
         set_role_for_user(table_cursor, users_table_name, roles_table_name, user["id_user"], role_code)
         conn.commit()
         return True, "Rôle mis à jour avec succès."
+    finally:
+        table_cursor.close()
+        cursor.close()
+        conn.close()
+
+
+def update_registered_user(original_identifiant, nom, prenom, identifiant, password, role):
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    table_cursor = conn.cursor()
+
+    try:
+        role_code = normalize_role_code(role)
+        if not role_code:
+            return False, "Rôle invalide."
+
+        users_table_name, roles_table_name = ensure_user_management_tables(table_cursor)
+        cursor.execute(
+            f"SELECT id_user FROM `{users_table_name}` WHERE LOWER(login) = LOWER(%s) LIMIT 1",
+            (original_identifiant,),
+        )
+        user = cursor.fetchone()
+        if not user:
+            return False, "Utilisateur introuvable."
+
+        cursor.execute(
+            f"SELECT id_user FROM `{users_table_name}` WHERE LOWER(login) = LOWER(%s) AND id_user <> %s LIMIT 1",
+            (identifiant, user["id_user"]),
+        )
+        if cursor.fetchone() or identifiant.casefold() == BOOTSTRAP_ADMIN_LOGIN.casefold():
+            return False, "Cet identifiant existe déjà."
+
+        cursor.execute(
+            f"""
+            UPDATE `{users_table_name}`
+            SET prenom = %s, nom = %s, login = %s, password = %s
+            WHERE id_user = %s
+            """,
+            (prenom, nom, identifiant, password, user["id_user"]),
+        )
+        set_role_for_user(table_cursor, users_table_name, roles_table_name, user["id_user"], role_code)
+        conn.commit()
+        return True, "Utilisateur mis à jour avec succès."
     finally:
         table_cursor.close()
         cursor.close()
@@ -737,6 +781,35 @@ def update_user_role():
         updated, message = update_registered_user_role(identifiant, role)
         if not updated:
             return jsonify({"success": False, "message": message}), 404
+        users = fetch_registered_users()
+    except mysql.connector.Error as exc:
+        return jsonify({"success": False, "message": str(exc)}), 500
+
+    return jsonify({"success": True, "message": message, "users": users})
+
+
+@app.route("/update_user", methods=["POST"])
+def update_user():
+    if not session.get("logged_in") or session.get("role") != "Admin":
+        return jsonify({"success": False, "message": "Accès refusé."}), 403
+
+    original_identifiant = (request.form.get("original_identifiant") or "").strip()
+    nom = (request.form.get("nom") or "").strip()
+    prenom = (request.form.get("prenom") or "").strip()
+    identifiant = (request.form.get("identifiant") or "").strip()
+    password = (request.form.get("mot_de_passe") or "").strip()
+    role = (request.form.get("role") or "").strip()
+
+    if not original_identifiant or not nom or not prenom or not identifiant or not password or not role:
+        return jsonify({"success": False, "message": "Tous les champs sont obligatoires."}), 400
+
+    if not normalize_role_code(role):
+        return jsonify({"success": False, "message": "Rôle invalide."}), 400
+
+    try:
+        updated, message = update_registered_user(original_identifiant, nom, prenom, identifiant, password, role)
+        if not updated:
+            return jsonify({"success": False, "message": message}), 409
         users = fetch_registered_users()
     except mysql.connector.Error as exc:
         return jsonify({"success": False, "message": str(exc)}), 500

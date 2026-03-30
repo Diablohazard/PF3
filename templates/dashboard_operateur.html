@@ -218,6 +218,7 @@
             <div class="accordion-content">
                 <div style="padding: 15px;">
                     <form id="adminUserForm" method="post" action="/create_user" style="display: grid; grid-template-columns: 1fr 1fr 1fr 1fr 1fr auto; gap: 16px; align-items: end;">
+                        <input type="hidden" id="original_identifiant" name="original_identifiant">
                         <div style="min-width: 0;">
                             <label for="nom">Nom</label><br>
                             <input type="text" id="nom" name="nom" required style="width: 100%; padding: 8px;">
@@ -245,6 +246,7 @@
                         </div>
                         <div style="white-space: nowrap;">
                             <button type="submit" id="adminUserSubmitBtn" style="padding: 9px 18px;">Validation</button>
+                            <button type="button" id="adminUserCancelBtn" style="padding: 9px 18px; display: none; margin-left: 8px;">Annuler</button>
                         </div>
                     </form>
 
@@ -268,7 +270,7 @@
                                 <td style="padding: 12px;">{{ user.identifiant }}</td>
                                 <td style="padding: 12px;">{{ user.role_label }}</td>
                                 <td style="padding: 12px;">
-                                    <button type="button" class="maintenance-action-btn admin-edit-role-btn" data-identifiant="{{ user.identifiant }}" data-role="{{ user.role }}" title="Modifier le rôle">✏️</button>
+                                    <button type="button" class="maintenance-action-btn admin-edit-role-btn" data-nom="{{ user.nom }}" data-prenom="{{ user.prenom }}" data-identifiant="{{ user.identifiant }}" data-password="{{ user.mot_de_passe }}" data-role="{{ user.role }}" title="Modifier l'utilisateur">✏️</button>
                                     <button type="button" class="maintenance-action-btn admin-delete-user-btn" data-identifiant="{{ user.identifiant }}" title="Supprimer">🗑️</button>
                                 </td>
                             </tr>
@@ -365,6 +367,14 @@
         const adminUserForm = document.getElementById('adminUserForm');
         const adminUsersTableBody = document.getElementById('adminUsersTableBody');
         const adminUserMessage = document.getElementById('adminUserMessage');
+        const adminUserSubmitBtn = document.getElementById('adminUserSubmitBtn');
+        const adminUserCancelBtn = document.getElementById('adminUserCancelBtn');
+        const adminOriginalIdentifiantInput = document.getElementById('original_identifiant');
+        const adminNomInput = document.getElementById('nom');
+        const adminPrenomInput = document.getElementById('prenom');
+        const adminIdentifiantInput = document.getElementById('identifiant');
+        const adminPasswordInput = document.getElementById('mot_de_passe');
+        const adminRoleInput = document.getElementById('role');
         const availableRoleKeys = ['Operat', 'Respo', 'Integ', 'Admin'];
 
         function escapeHtml(text) {
@@ -396,9 +406,12 @@
                     `<td style="padding: 12px;">${escapeHtml(user.role_label || user.role)}</td>` +
                     `<td style="padding: 12px;">` +
                         `<button type="button" class="maintenance-action-btn admin-edit-role-btn"` +
+                            ` data-nom="${escapeHtml(user.nom)}"` +
+                            ` data-prenom="${escapeHtml(user.prenom)}"` +
                             ` data-identifiant="${escapeHtml(user.identifiant)}"` +
+                            ` data-password="${escapeHtml(user.mot_de_passe || '')}"` +
                             ` data-role="${escapeHtml(user.role)}"` +
-                            ` title="Modifier le rôle">✏️</button>` +
+                            ` title="Modifier l'utilisateur">✏️</button>` +
                         `<button type="button" class="maintenance-action-btn admin-delete-user-btn"` +
                             ` data-identifiant="${escapeHtml(user.identifiant)}"` +
                             ` title="Supprimer">🗑️</button>` +
@@ -409,48 +422,40 @@
             attachAdminUserActions();
         }
 
+        function resetAdminUserForm() {
+            if (!adminUserForm || !adminUserSubmitBtn || !adminOriginalIdentifiantInput || !adminRoleInput) return;
+            adminUserForm.reset();
+            adminUserForm.action = '/create_user';
+            adminOriginalIdentifiantInput.value = '';
+            adminRoleInput.selectedIndex = 0;
+            adminUserSubmitBtn.textContent = 'Validation';
+            if (adminUserCancelBtn) {
+                adminUserCancelBtn.style.display = 'none';
+            }
+        }
+
         function attachAdminUserActions() {
             document.querySelectorAll('.admin-edit-role-btn').forEach(button => {
                 button.onclick = function() {
-                    const identifiant = this.dataset.identifiant;
-                    const currentRole = this.dataset.role || 'Operat';
-                    if (!identifiant) return;
-
-                    const input = prompt('Nouveau rôle (Operat, Respo, Integ, Admin) :', currentRole);
-                    if (input === null) return;
-                    const nextRole = input.trim();
-
-                    if (!availableRoleKeys.includes(nextRole)) {
-                        if (adminUserMessage) {
-                            adminUserMessage.textContent = 'Rôle invalide. Utilisez : Operat, Respo, Integ, Admin.';
-                            adminUserMessage.style.color = 'red';
-                        }
+                    if (!adminUserForm || !adminOriginalIdentifiantInput || !adminNomInput || !adminPrenomInput || !adminIdentifiantInput || !adminPasswordInput || !adminRoleInput || !adminUserSubmitBtn) {
                         return;
                     }
 
-                    const formData = new FormData();
-                    formData.append('identifiant', identifiant);
-                    formData.append('role', nextRole);
-
-                    fetch('/update_user_role', { method: 'POST', body: formData })
-                        .then(async r => {
-                            const data = await r.json();
-                            if (!r.ok) throw new Error(data.message || 'Erreur lors de la mise à jour du rôle.');
-                            return data;
-                        })
-                        .then(data => {
-                            renderAdminUsers(data.users || []);
-                            if (adminUserMessage) {
-                                adminUserMessage.textContent = data.message || 'Rôle mis à jour avec succès.';
-                                adminUserMessage.style.color = 'green';
-                            }
-                        })
-                        .catch(error => {
-                            if (adminUserMessage) {
-                                adminUserMessage.textContent = error.message || 'Erreur de connexion au serveur.';
-                                adminUserMessage.style.color = 'red';
-                            }
-                        });
+                    adminUserForm.action = '/update_user';
+                    adminOriginalIdentifiantInput.value = this.dataset.identifiant || '';
+                    adminNomInput.value = this.dataset.nom || '';
+                    adminPrenomInput.value = this.dataset.prenom || '';
+                    adminIdentifiantInput.value = this.dataset.identifiant || '';
+                    adminPasswordInput.value = this.dataset.password || '';
+                    adminRoleInput.value = this.dataset.role || 'Operat';
+                    adminUserSubmitBtn.textContent = 'Mettre à jour';
+                    if (adminUserCancelBtn) {
+                        adminUserCancelBtn.style.display = 'inline-block';
+                    }
+                    if (adminUserMessage) {
+                        adminUserMessage.textContent = 'Modification de l\'utilisateur en cours.';
+                        adminUserMessage.style.color = '#1f2937';
+                    }
                 };
             });
 
@@ -607,6 +612,14 @@
         if (adminUserForm && adminUsersTableBody && adminUserMessage) {
             attachAdminUserActions();
 
+            if (adminUserCancelBtn) {
+                adminUserCancelBtn.onclick = function() {
+                    resetAdminUserForm();
+                    adminUserMessage.textContent = '';
+                    adminUserMessage.style.color = '';
+                };
+            }
+
             adminUserForm.onsubmit = function(e) {
                 e.preventDefault();
                 adminUserMessage.textContent = '';
@@ -628,7 +641,7 @@
                         renderAdminUsers(data.users || []);
                         adminUserMessage.textContent = data.message || 'Utilisateur créé avec succès !';
                         adminUserMessage.style.color = 'green';
-                        adminUserForm.reset();
+                        resetAdminUserForm();
 
                         const adminContent = adminUserForm.closest('.accordion-content');
                         if (adminContent && adminContent.style.maxHeight) {
