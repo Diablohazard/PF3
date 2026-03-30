@@ -172,7 +172,8 @@ def ensure_roles_table(cursor, table_name):
         f"""
         CREATE TABLE IF NOT EXISTS `{table_name}` (
             id_role INT AUTO_INCREMENT PRIMARY KEY,
-            nom VARCHAR(50) UNIQUE NOT NULL
+            nom VARCHAR(50) NOT NULL,
+            id_user INT NULL
         )
         """
     )
@@ -186,9 +187,7 @@ def ensure_users_table(cursor, users_table_name, roles_table_name):
             prenom VARCHAR(50) NOT NULL,
             nom VARCHAR(50) NOT NULL,
             login VARCHAR(50) UNIQUE NOT NULL,
-            password VARCHAR(50) NOT NULL,
-            id_role INT NULL,
-            CONSTRAINT fk_users_role FOREIGN KEY (id_role) REFERENCES `{roles_table_name}` (id_role)
+            password VARCHAR(50) NOT NULL
         )
         """
     )
@@ -202,14 +201,54 @@ def ensure_user_management_tables(cursor):
     return users_table_name, roles_table_name
 
 
-def get_or_create_role_id(cursor, roles_table_name, role_name):
-    cursor.execute(f"SELECT id_role FROM `{roles_table_name}` WHERE nom = %s", (role_name,))
-    row = cursor.fetchone()
-    if row:
-        return row[0]
+def get_table_columns(cursor, table_name):
+    cursor.execute(
+        """
+        SELECT COLUMN_NAME
+        FROM information_schema.COLUMNS
+        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s
+        """,
+        (table_name,),
+    )
+    return {row[0] for row in cursor.fetchall()}
 
-    cursor.execute(f"INSERT INTO `{roles_table_name}` (nom) VALUES (%s)", (role_name,))
-    return cursor.lastrowid
+
+def get_role_by_user_id(cursor, roles_table_name, user_id):
+    role_columns = get_table_columns(cursor, roles_table_name)
+
+    if "id_user" in role_columns:
+        cursor.execute(
+            f"SELECT nom FROM `{roles_table_name}` WHERE id_user = %s ORDER BY id_role DESC LIMIT 1",
+            (user_id,),
+        )
+        row = cursor.fetchone()
+        if row and row[0]:
+            return row[0]
+
+    return ""
+
+
+def set_role_for_user(cursor, roles_table_name, user_id, role_name):
+    role_columns = get_table_columns(cursor, roles_table_name)
+    if "id_user" not in role_columns:
+        return
+
+    cursor.execute(
+        f"SELECT id_role FROM `{roles_table_name}` WHERE id_user = %s LIMIT 1",
+        (user_id,),
+    )
+    existing = cursor.fetchone()
+
+    if existing:
+        cursor.execute(
+            f"UPDATE `{roles_table_name}` SET nom = %s WHERE id_role = %s",
+            (role_name, existing[0]),
+        )
+    else:
+        cursor.execute(
+            f"INSERT INTO `{roles_table_name}` (nom, id_user) VALUES (%s, %s)",
+            (role_name, user_id),
+        )
 
 
 def fetch_registered_users():
@@ -221,23 +260,26 @@ def fetch_registered_users():
         users_table_name, roles_table_name = ensure_user_management_tables(table_cursor)
         cursor.execute(
             f"""
-            SELECT u.prenom, u.nom, u.login, r.nom AS role
+            SELECT u.id_user, u.prenom, u.nom, u.login
             FROM `{users_table_name}` u
-            LEFT JOIN `{roles_table_name}` r ON r.id_role = u.id_role
             ORDER BY u.nom ASC, u.prenom ASC, u.login ASC
             """
         )
         users = cursor.fetchall()
-        return [
-            {
-                "nom": user["nom"],
-                "prenom": user["prenom"],
-                "identifiant": user["login"],
-                "role": user["role"] or "",
-                "role_label": AVAILABLE_ROLES.get(user["role"] or "", user["role"] or ""),
-            }
-            for user in users
-        ]
+
+        result = []
+        for user in users:
+            role_name = get_role_by_user_id(table_cursor, roles_table_name, user["id_user"]) or "Operat"
+            result.append(
+                {
+                    "nom": user["nom"],
+                    "prenom": user["prenom"],
+                    "identifiant": user["login"],
+                    "role": role_name,
+                    "role_label": AVAILABLE_ROLES.get(role_name, role_name),
+                }
+            )
+        return result
     finally:
         table_cursor.close()
         cursor.close()
@@ -253,15 +295,20 @@ def get_registered_user_for_auth(login):
         users_table_name, roles_table_name = ensure_user_management_tables(table_cursor)
         cursor.execute(
             f"""
-            SELECT u.login, u.password, r.nom AS role
+            SELECT u.id_user, u.login, u.password
             FROM `{users_table_name}` u
-            LEFT JOIN `{roles_table_name}` r ON r.id_role = u.id_role
             WHERE LOWER(u.login) = LOWER(%s)
             LIMIT 1
             """,
             (login,)
         )
-        return cursor.fetchone()
+        account = cursor.fetchone()
+        if not account:
+            return None
+
+        role_name = get_role_by_user_id(table_cursor, roles_table_name, account["id_user"]) or "Operat"
+        account["role"] = role_name
+        return account
     finally:
         table_cursor.close()
         cursor.close()
@@ -297,14 +344,15 @@ def create_registered_user(nom, prenom, identifiant, password, role):
         if cursor.fetchone() or identifiant.casefold() == BOOTSTRAP_ADMIN_LOGIN.casefold():
             return False, "Cet identifiant existe déjà."
 
-        role_id = get_or_create_role_id(table_cursor, roles_table_name, role)
         cursor.execute(
             f"""
-            INSERT INTO `{users_table_name}` (prenom, nom, login, password, id_role)
-            VALUES (%s, %s, %s, %s, %s)
+            INSERT INTO `{users_table_name}` (prenom, nom, login, password)
+            VALUES (%s, %s, %s, %s)
             """,
-            (prenom, nom, identifiant, password, role_id)
+            (prenom, nom, identifiant, password)
         )
+        user_id = cursor.lastrowid
+        set_role_for_user(table_cursor, roles_table_name, user_id, role)
         conn.commit()
         return True, "Utilisateur créé avec succès !"
     finally:
