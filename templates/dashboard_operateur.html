@@ -257,6 +257,7 @@
                                 <th style="padding: 12px; text-align: left;">Prénom</th>
                                 <th style="padding: 12px; text-align: left;">Identifiant</th>
                                 <th style="padding: 12px; text-align: left;">Rôle</th>
+                                <th style="padding: 12px; text-align: left;">Actions</th>
                             </tr>
                         </thead>
                         <tbody id="adminUsersTableBody">
@@ -266,10 +267,14 @@
                                 <td style="padding: 12px;">{{ user.prenom }}</td>
                                 <td style="padding: 12px;">{{ user.identifiant }}</td>
                                 <td style="padding: 12px;">{{ user.role_label }}</td>
+                                <td style="padding: 12px;">
+                                    <button type="button" class="maintenance-action-btn admin-edit-role-btn" data-identifiant="{{ user.identifiant }}" data-role="{{ user.role }}" title="Modifier le rôle">✏️</button>
+                                    <button type="button" class="maintenance-action-btn admin-delete-user-btn" data-identifiant="{{ user.identifiant }}" title="Supprimer">🗑️</button>
+                                </td>
                             </tr>
                             {% else %}
                             <tr id="adminUsersEmptyRow" style="color: black;">
-                                <td colspan="4" style="padding: 12px; text-align: center;">Aucun utilisateur enregistré.</td>
+                                <td colspan="5" style="padding: 12px; text-align: center;">Aucun utilisateur enregistré.</td>
                             </tr>
                             {% endfor %}
                         </tbody>
@@ -360,6 +365,7 @@
         const adminUserForm = document.getElementById('adminUserForm');
         const adminUsersTableBody = document.getElementById('adminUsersTableBody');
         const adminUserMessage = document.getElementById('adminUserMessage');
+        const availableRoleKeys = ['Operat', 'Respo', 'Integ', 'Admin'];
 
         function escapeHtml(text) {
             return String(text)
@@ -375,7 +381,7 @@
             adminUsersTableBody.innerHTML = '';
 
             if (!users || users.length === 0) {
-                adminUsersTableBody.innerHTML = '<tr id="adminUsersEmptyRow" style="color: black;"><td colspan="4" style="padding: 12px; text-align: center;">Aucun utilisateur enregistré.</td></tr>';
+                adminUsersTableBody.innerHTML = '<tr id="adminUsersEmptyRow" style="color: black;"><td colspan="5" style="padding: 12px; text-align: center;">Aucun utilisateur enregistré.</td></tr>';
                 return;
             }
 
@@ -387,8 +393,96 @@
                     `<td style="padding: 12px;">${escapeHtml(user.nom)}</td>` +
                     `<td style="padding: 12px;">${escapeHtml(user.prenom)}</td>` +
                     `<td style="padding: 12px;">${escapeHtml(user.identifiant)}</td>` +
-                    `<td style="padding: 12px;">${escapeHtml(user.role_label || user.role)}</td>`;
+                    `<td style="padding: 12px;">${escapeHtml(user.role_label || user.role)}</td>` +
+                    `<td style="padding: 12px;">` +
+                        `<button type="button" class="maintenance-action-btn admin-edit-role-btn"` +
+                            ` data-identifiant="${escapeHtml(user.identifiant)}"` +
+                            ` data-role="${escapeHtml(user.role)}"` +
+                            ` title="Modifier le rôle">✏️</button>` +
+                        `<button type="button" class="maintenance-action-btn admin-delete-user-btn"` +
+                            ` data-identifiant="${escapeHtml(user.identifiant)}"` +
+                            ` title="Supprimer">🗑️</button>` +
+                    `</td>`;
                 adminUsersTableBody.appendChild(tr);
+            });
+
+            attachAdminUserActions();
+        }
+
+        function attachAdminUserActions() {
+            document.querySelectorAll('.admin-edit-role-btn').forEach(button => {
+                button.onclick = function() {
+                    const identifiant = this.dataset.identifiant;
+                    const currentRole = this.dataset.role || 'Operat';
+                    if (!identifiant) return;
+
+                    const input = prompt('Nouveau rôle (Operat, Respo, Integ, Admin) :', currentRole);
+                    if (input === null) return;
+                    const nextRole = input.trim();
+
+                    if (!availableRoleKeys.includes(nextRole)) {
+                        if (adminUserMessage) {
+                            adminUserMessage.textContent = 'Rôle invalide. Utilisez : Operat, Respo, Integ, Admin.';
+                            adminUserMessage.style.color = 'red';
+                        }
+                        return;
+                    }
+
+                    const formData = new FormData();
+                    formData.append('identifiant', identifiant);
+                    formData.append('role', nextRole);
+
+                    fetch('/update_user_role', { method: 'POST', body: formData })
+                        .then(async r => {
+                            const data = await r.json();
+                            if (!r.ok) throw new Error(data.message || 'Erreur lors de la mise à jour du rôle.');
+                            return data;
+                        })
+                        .then(data => {
+                            renderAdminUsers(data.users || []);
+                            if (adminUserMessage) {
+                                adminUserMessage.textContent = data.message || 'Rôle mis à jour avec succès.';
+                                adminUserMessage.style.color = 'green';
+                            }
+                        })
+                        .catch(error => {
+                            if (adminUserMessage) {
+                                adminUserMessage.textContent = error.message || 'Erreur de connexion au serveur.';
+                                adminUserMessage.style.color = 'red';
+                            }
+                        });
+                };
+            });
+
+            document.querySelectorAll('.admin-delete-user-btn').forEach(button => {
+                button.onclick = function() {
+                    const identifiant = this.dataset.identifiant;
+                    if (!identifiant) return;
+                    if (!confirm(`Confirmer la suppression de l'utilisateur ${identifiant} ?`)) return;
+
+                    const formData = new FormData();
+                    formData.append('identifiant', identifiant);
+
+                    fetch('/delete_user', { method: 'POST', body: formData })
+                        .then(async r => {
+                            const data = await r.json();
+                            if (!r.ok) throw new Error(data.message || 'Erreur lors de la suppression.');
+                            return data;
+                        })
+                        .then(data => {
+                            renderAdminUsers(data.users || []);
+                            if (adminUserMessage) {
+                                adminUserMessage.textContent = data.message || 'Utilisateur supprimé avec succès.';
+                                adminUserMessage.style.color = 'green';
+                            }
+                        })
+                        .catch(error => {
+                            if (adminUserMessage) {
+                                adminUserMessage.textContent = error.message || 'Erreur de connexion au serveur.';
+                                adminUserMessage.style.color = 'red';
+                            }
+                        });
+                };
             });
         }
 
@@ -511,6 +605,8 @@
         }
 
         if (adminUserForm && adminUsersTableBody && adminUserMessage) {
+            attachAdminUserActions();
+
             adminUserForm.onsubmit = function(e) {
                 e.preventDefault();
                 adminUserMessage.textContent = '';

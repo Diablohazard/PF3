@@ -213,8 +213,40 @@ def get_table_columns(cursor, table_name):
     return {row[0] for row in cursor.fetchall()}
 
 
-def get_role_by_user_id(cursor, roles_table_name, user_id):
+def get_or_create_role_id(cursor, roles_table_name, role_name, role_columns):
+    cursor.execute(
+        f"SELECT id_role FROM `{roles_table_name}` WHERE nom = %s ORDER BY id_role ASC LIMIT 1",
+        (role_name,),
+    )
+    row = cursor.fetchone()
+    if row:
+        return row[0]
+
+    if "id_user" in role_columns:
+        cursor.execute(
+            f"INSERT INTO `{roles_table_name}` (nom, id_user) VALUES (%s, NULL)",
+            (role_name,),
+        )
+    else:
+        cursor.execute(
+            f"INSERT INTO `{roles_table_name}` (nom) VALUES (%s)",
+            (role_name,),
+        )
+    return cursor.lastrowid
+
+
+def get_role_by_user_id(cursor, users_table_name, roles_table_name, user_id, user_id_role=None):
+    users_columns = get_table_columns(cursor, users_table_name)
     role_columns = get_table_columns(cursor, roles_table_name)
+
+    if "id_role" in users_columns and user_id_role:
+        cursor.execute(
+            f"SELECT nom FROM `{roles_table_name}` WHERE id_role = %s LIMIT 1",
+            (user_id_role,),
+        )
+        row = cursor.fetchone()
+        if row and row[0]:
+            return row[0]
 
     if "id_user" in role_columns:
         cursor.execute(
@@ -228,27 +260,35 @@ def get_role_by_user_id(cursor, roles_table_name, user_id):
     return ""
 
 
-def set_role_for_user(cursor, roles_table_name, user_id, role_name):
+def set_role_for_user(cursor, users_table_name, roles_table_name, user_id, role_name):
+    users_columns = get_table_columns(cursor, users_table_name)
     role_columns = get_table_columns(cursor, roles_table_name)
-    if "id_user" not in role_columns:
+
+    if "id_role" in users_columns:
+        role_id = get_or_create_role_id(cursor, roles_table_name, role_name, role_columns)
+        cursor.execute(
+            f"UPDATE `{users_table_name}` SET id_role = %s WHERE id_user = %s",
+            (role_id, user_id),
+        )
         return
 
-    cursor.execute(
-        f"SELECT id_role FROM `{roles_table_name}` WHERE id_user = %s LIMIT 1",
-        (user_id,),
-    )
-    existing = cursor.fetchone()
+    if "id_user" in role_columns:
+        cursor.execute(
+            f"SELECT id_role FROM `{roles_table_name}` WHERE id_user = %s LIMIT 1",
+            (user_id,),
+        )
+        existing = cursor.fetchone()
 
-    if existing:
-        cursor.execute(
-            f"UPDATE `{roles_table_name}` SET nom = %s WHERE id_role = %s",
-            (role_name, existing[0]),
-        )
-    else:
-        cursor.execute(
-            f"INSERT INTO `{roles_table_name}` (nom, id_user) VALUES (%s, %s)",
-            (role_name, user_id),
-        )
+        if existing:
+            cursor.execute(
+                f"UPDATE `{roles_table_name}` SET nom = %s WHERE id_role = %s",
+                (role_name, existing[0]),
+            )
+        else:
+            cursor.execute(
+                f"INSERT INTO `{roles_table_name}` (nom, id_user) VALUES (%s, %s)",
+                (role_name, user_id),
+            )
 
 
 def fetch_registered_users():
@@ -258,9 +298,11 @@ def fetch_registered_users():
 
     try:
         users_table_name, roles_table_name = ensure_user_management_tables(table_cursor)
+        users_columns = get_table_columns(table_cursor, users_table_name)
+        select_id_role = ", u.id_role" if "id_role" in users_columns else ""
         cursor.execute(
             f"""
-            SELECT u.id_user, u.prenom, u.nom, u.login
+            SELECT u.id_user, u.prenom, u.nom, u.login{select_id_role}
             FROM `{users_table_name}` u
             ORDER BY u.nom ASC, u.prenom ASC, u.login ASC
             """
@@ -269,7 +311,13 @@ def fetch_registered_users():
 
         result = []
         for user in users:
-            role_name = get_role_by_user_id(table_cursor, roles_table_name, user["id_user"]) or "Operat"
+            role_name = get_role_by_user_id(
+                table_cursor,
+                users_table_name,
+                roles_table_name,
+                user["id_user"],
+                user.get("id_role") if "id_role" in user else None,
+            ) or "Operat"
             result.append(
                 {
                     "nom": user["nom"],
@@ -293,9 +341,11 @@ def get_registered_user_for_auth(login):
 
     try:
         users_table_name, roles_table_name = ensure_user_management_tables(table_cursor)
+        users_columns = get_table_columns(table_cursor, users_table_name)
+        select_id_role = ", u.id_role" if "id_role" in users_columns else ""
         cursor.execute(
             f"""
-            SELECT u.id_user, u.login, u.password
+            SELECT u.id_user, u.login, u.password{select_id_role}
             FROM `{users_table_name}` u
             WHERE LOWER(u.login) = LOWER(%s)
             LIMIT 1
@@ -306,7 +356,13 @@ def get_registered_user_for_auth(login):
         if not account:
             return None
 
-        role_name = get_role_by_user_id(table_cursor, roles_table_name, account["id_user"]) or "Operat"
+        role_name = get_role_by_user_id(
+            table_cursor,
+            users_table_name,
+            roles_table_name,
+            account["id_user"],
+            account.get("id_role") if "id_role" in account else None,
+        ) or "Operat"
         account["role"] = role_name
         return account
     finally:
@@ -352,9 +408,73 @@ def create_registered_user(nom, prenom, identifiant, password, role):
             (prenom, nom, identifiant, password)
         )
         user_id = cursor.lastrowid
-        set_role_for_user(table_cursor, roles_table_name, user_id, role)
+        set_role_for_user(table_cursor, users_table_name, roles_table_name, user_id, role)
         conn.commit()
         return True, "Utilisateur créé avec succès !"
+    finally:
+        table_cursor.close()
+        cursor.close()
+        conn.close()
+
+
+def update_registered_user_role(identifiant, role):
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    table_cursor = conn.cursor()
+
+    try:
+        users_table_name, roles_table_name = ensure_user_management_tables(table_cursor)
+        cursor.execute(
+            f"SELECT id_user FROM `{users_table_name}` WHERE LOWER(login) = LOWER(%s) LIMIT 1",
+            (identifiant,),
+        )
+        user = cursor.fetchone()
+        if not user:
+            return False, "Utilisateur introuvable."
+
+        set_role_for_user(table_cursor, users_table_name, roles_table_name, user["id_user"], role)
+        conn.commit()
+        return True, "Rôle mis à jour avec succès."
+    finally:
+        table_cursor.close()
+        cursor.close()
+        conn.close()
+
+
+def delete_registered_user(identifiant):
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    table_cursor = conn.cursor()
+
+    try:
+        users_table_name, roles_table_name = ensure_user_management_tables(table_cursor)
+        users_columns = get_table_columns(table_cursor, users_table_name)
+        role_columns = get_table_columns(table_cursor, roles_table_name)
+
+        select_id_role = ", id_role" if "id_role" in users_columns else ""
+        cursor.execute(
+            f"SELECT id_user{select_id_role} FROM `{users_table_name}` WHERE LOWER(login) = LOWER(%s) LIMIT 1",
+            (identifiant,),
+        )
+        user = cursor.fetchone()
+        if not user:
+            return False, "Utilisateur introuvable."
+
+        if identifiant.casefold() == BOOTSTRAP_ADMIN_LOGIN.casefold():
+            return False, "Suppression du compte bootstrap interdite."
+
+        if "id_user" in role_columns:
+            table_cursor.execute(
+                f"DELETE FROM `{roles_table_name}` WHERE id_user = %s",
+                (user["id_user"],),
+            )
+
+        cursor.execute(
+            f"DELETE FROM `{users_table_name}` WHERE id_user = %s",
+            (user["id_user"],),
+        )
+        conn.commit()
+        return True, "Utilisateur supprimé avec succès."
     finally:
         table_cursor.close()
         cursor.close()
@@ -547,6 +667,51 @@ def create_user():
             "users": users,
         }
     )
+
+
+@app.route("/update_user_role", methods=["POST"])
+def update_user_role():
+    if not session.get("logged_in") or session.get("role") != "Admin":
+        return jsonify({"success": False, "message": "Accès refusé."}), 403
+
+    identifiant = (request.form.get("identifiant") or "").strip()
+    role = (request.form.get("role") or "").strip()
+
+    if not identifiant or not role:
+        return jsonify({"success": False, "message": "Identifiant et rôle obligatoires."}), 400
+
+    if role not in AVAILABLE_ROLES:
+        return jsonify({"success": False, "message": "Rôle invalide."}), 400
+
+    try:
+        updated, message = update_registered_user_role(identifiant, role)
+        if not updated:
+            return jsonify({"success": False, "message": message}), 404
+        users = fetch_registered_users()
+    except mysql.connector.Error as exc:
+        return jsonify({"success": False, "message": str(exc)}), 500
+
+    return jsonify({"success": True, "message": message, "users": users})
+
+
+@app.route("/delete_user", methods=["POST"])
+def delete_user():
+    if not session.get("logged_in") or session.get("role") != "Admin":
+        return jsonify({"success": False, "message": "Accès refusé."}), 403
+
+    identifiant = (request.form.get("identifiant") or "").strip()
+    if not identifiant:
+        return jsonify({"success": False, "message": "Identifiant obligatoire."}), 400
+
+    try:
+        deleted, message = delete_registered_user(identifiant)
+        if not deleted:
+            return jsonify({"success": False, "message": message}), 404
+        users = fetch_registered_users()
+    except mysql.connector.Error as exc:
+        return jsonify({"success": False, "message": str(exc)}), 500
+
+    return jsonify({"success": True, "message": message, "users": users})
  
 # --- TOUJOURS À LA FIN DU FICHIER ---
 if __name__ == "__main__":
