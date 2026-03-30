@@ -128,11 +128,15 @@ def can_manage_maintenance():
     return session.get("logged_in") and session.get("role") in ("Respo", "Integ", "Admin")
  
 AVAILABLE_ROLES = {
-    "Operat": "Opérateur",
+    "Operat": "Operateur",
     "Respo": "Responsable",
-    "Integ": "Intégrateur",
+    "Integ": "Integrateur",
     "Admin": "Administrateur",
 }
+ROLE_VALUE_TO_CODE = {}
+for _role_code, _role_label in AVAILABLE_ROLES.items():
+    ROLE_VALUE_TO_CODE[_role_code.casefold()] = _role_code
+    ROLE_VALUE_TO_CODE[_role_label.casefold()] = _role_code
 BOOTSTRAP_ADMIN_LOGIN = "Admin"
 BOOTSTRAP_ADMIN_PASSWORD = "administrator"
 
@@ -198,7 +202,16 @@ def ensure_user_management_tables(cursor):
     ensure_roles_table(cursor, roles_table_name)
     users_table_name = get_users_table_name(cursor)
     ensure_users_table(cursor, users_table_name, roles_table_name)
+    users_columns = get_table_columns(cursor, users_table_name)
     role_columns = get_table_columns(cursor, roles_table_name)
+
+    if "id_role" not in users_columns:
+        cursor.execute(f"ALTER TABLE `{users_table_name}` ADD COLUMN id_role INT NULL")
+
+    if "id_user" not in role_columns:
+        cursor.execute(f"ALTER TABLE `{roles_table_name}` ADD COLUMN id_user INT NULL")
+        role_columns = get_table_columns(cursor, roles_table_name)
+
     for role_name in AVAILABLE_ROLES:
         get_or_create_role_id(cursor, roles_table_name, role_name, role_columns)
     return users_table_name, roles_table_name
@@ -216,24 +229,44 @@ def get_table_columns(cursor, table_name):
     return {row[0] for row in cursor.fetchall()}
 
 
+def normalize_role_code(role_value):
+    if not role_value:
+        return ""
+    return ROLE_VALUE_TO_CODE.get(str(role_value).strip().casefold(), "")
+
+
+def get_role_label(role_value):
+    role_code = normalize_role_code(role_value)
+    if role_code:
+        return AVAILABLE_ROLES[role_code]
+    return str(role_value).strip() if role_value else ""
+
+
 def get_or_create_role_id(cursor, roles_table_name, role_name, role_columns):
+    role_code = normalize_role_code(role_name) or role_name
+    role_label = get_role_label(role_code)
     cursor.execute(
-        f"SELECT id_role FROM `{roles_table_name}` WHERE nom = %s ORDER BY id_role ASC LIMIT 1",
-        (role_name,),
+        f"SELECT id_role, nom FROM `{roles_table_name}` WHERE LOWER(nom) IN (%s, %s) ORDER BY id_role ASC LIMIT 1",
+        (role_label.casefold(), str(role_name).strip().casefold()),
     )
     row = cursor.fetchone()
     if row:
+        if row[1] != role_label:
+            cursor.execute(
+                f"UPDATE `{roles_table_name}` SET nom = %s WHERE id_role = %s",
+                (role_label, row[0]),
+            )
         return row[0]
 
     if "id_user" in role_columns:
         cursor.execute(
             f"INSERT INTO `{roles_table_name}` (nom, id_user) VALUES (%s, NULL)",
-            (role_name,),
+            (role_label,),
         )
     else:
         cursor.execute(
             f"INSERT INTO `{roles_table_name}` (nom) VALUES (%s)",
-            (role_name,),
+            (role_label,),
         )
     return cursor.lastrowid
 
@@ -249,7 +282,7 @@ def get_role_by_user_id(cursor, users_table_name, roles_table_name, user_id, use
         )
         row = cursor.fetchone()
         if row and row[0]:
-            return row[0]
+            return normalize_role_code(row[0])
 
     if "id_user" in role_columns:
         cursor.execute(
@@ -258,7 +291,7 @@ def get_role_by_user_id(cursor, users_table_name, roles_table_name, user_id, use
         )
         row = cursor.fetchone()
         if row and row[0]:
-            return row[0]
+            return normalize_role_code(row[0])
 
     return ""
 
@@ -266,9 +299,13 @@ def get_role_by_user_id(cursor, users_table_name, roles_table_name, user_id, use
 def set_role_for_user(cursor, users_table_name, roles_table_name, user_id, role_name):
     users_columns = get_table_columns(cursor, users_table_name)
     role_columns = get_table_columns(cursor, roles_table_name)
+    role_code = normalize_role_code(role_name)
+
+    if not role_code:
+        return
 
     if "id_role" in users_columns:
-        role_id = get_or_create_role_id(cursor, roles_table_name, role_name, role_columns)
+        role_id = get_or_create_role_id(cursor, roles_table_name, role_code, role_columns)
         cursor.execute(
             f"UPDATE `{users_table_name}` SET id_role = %s WHERE id_user = %s",
             (role_id, user_id),
@@ -285,15 +322,13 @@ def set_role_for_user(cursor, users_table_name, roles_table_name, user_id, role_
         if existing:
             cursor.execute(
                 f"UPDATE `{roles_table_name}` SET nom = %s WHERE id_role = %s",
-                (role_name, existing[0]),
+                (get_role_label(role_code), existing[0]),
             )
-            role_id = existing[0]
         else:
             cursor.execute(
                 f"INSERT INTO `{roles_table_name}` (nom, id_user) VALUES (%s, %s)",
-                (role_name, user_id),
+                (get_role_label(role_code), user_id),
             )
-            role_id = cursor.lastrowid
 
         return
 
@@ -331,7 +366,7 @@ def fetch_registered_users():
                     "prenom": user["prenom"],
                     "identifiant": user["login"],
                     "role": role_name,
-                    "role_label": AVAILABLE_ROLES.get(role_name, role_name),
+                    "role_label": get_role_label(role_name),
                 }
             )
         return result
@@ -389,7 +424,7 @@ def authenticate_user(username, password):
     if account["password"] != password:
         return None
 
-    role = account.get("role") or "Operat"
+    role = normalize_role_code(account.get("role") or "Operat")
     return role if role in AVAILABLE_ROLES else None
 
 
@@ -399,6 +434,10 @@ def create_registered_user(nom, prenom, identifiant, password, role):
     table_cursor = conn.cursor()
 
     try:
+        role_code = normalize_role_code(role)
+        if not role_code:
+            return False, "Rôle invalide."
+
         users_table_name, roles_table_name = ensure_user_management_tables(table_cursor)
         cursor.execute(
             f"SELECT id_user FROM `{users_table_name}` WHERE LOWER(login) = LOWER(%s) LIMIT 1",
@@ -415,7 +454,7 @@ def create_registered_user(nom, prenom, identifiant, password, role):
             (prenom, nom, identifiant, password)
         )
         user_id = cursor.lastrowid
-        set_role_for_user(table_cursor, users_table_name, roles_table_name, user_id, role)
+        set_role_for_user(table_cursor, users_table_name, roles_table_name, user_id, role_code)
         conn.commit()
         return True, "Utilisateur créé avec succès !"
     finally:
@@ -430,6 +469,10 @@ def update_registered_user_role(identifiant, role):
     table_cursor = conn.cursor()
 
     try:
+        role_code = normalize_role_code(role)
+        if not role_code:
+            return False, "Rôle invalide."
+
         users_table_name, roles_table_name = ensure_user_management_tables(table_cursor)
         cursor.execute(
             f"SELECT id_user FROM `{users_table_name}` WHERE LOWER(login) = LOWER(%s) LIMIT 1",
@@ -439,7 +482,7 @@ def update_registered_user_role(identifiant, role):
         if not user:
             return False, "Utilisateur introuvable."
 
-        set_role_for_user(table_cursor, users_table_name, roles_table_name, user["id_user"], role)
+        set_role_for_user(table_cursor, users_table_name, roles_table_name, user["id_user"], role_code)
         conn.commit()
         return True, "Rôle mis à jour avec succès."
     finally:
@@ -656,7 +699,7 @@ def create_user():
     if not nom or not prenom or not identifiant or not password or not role:
         return jsonify({"success": False, "message": "Tous les champs sont obligatoires."}), 400
 
-    if role not in AVAILABLE_ROLES:
+    if not normalize_role_code(role):
         return jsonify({"success": False, "message": "Rôle invalide."}), 400
 
     try:
@@ -687,7 +730,7 @@ def update_user_role():
     if not identifiant or not role:
         return jsonify({"success": False, "message": "Identifiant et rôle obligatoires."}), 400
 
-    if role not in AVAILABLE_ROLES:
+    if not normalize_role_code(role):
         return jsonify({"success": False, "message": "Rôle invalide."}), 400
 
     try:
