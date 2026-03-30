@@ -82,12 +82,52 @@ def recuperer_interventions():
     try:
         table_name = get_intervention_table_name(table_cursor)
         ensure_intervention_table(table_cursor, table_name)
-        cursor.execute(f"SELECT nom, horodatage FROM `{table_name}` ORDER BY horodatage DESC")
+        cursor.execute(f"SELECT id_inter, nom, horodatage FROM `{table_name}` ORDER BY horodatage DESC")
         return cursor.fetchall()
     finally:
         table_cursor.close()
         cursor.close()
         conn.close()
+
+
+def modifier_intervention(id_inter, nom, horodatage):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    table_cursor = conn.cursor()
+
+    try:
+        table_name = get_intervention_table_name(table_cursor)
+        ensure_intervention_table(table_cursor, table_name)
+        sql = f"UPDATE `{table_name}` SET nom = %s, horodatage = %s WHERE id_inter = %s"
+        cursor.execute(sql, (nom, horodatage, id_inter))
+        conn.commit()
+        return cursor.rowcount > 0
+    finally:
+        table_cursor.close()
+        cursor.close()
+        conn.close()
+
+
+def supprimer_intervention(id_inter):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    table_cursor = conn.cursor()
+
+    try:
+        table_name = get_intervention_table_name(table_cursor)
+        ensure_intervention_table(table_cursor, table_name)
+        sql = f"DELETE FROM `{table_name}` WHERE id_inter = %s"
+        cursor.execute(sql, (id_inter,))
+        conn.commit()
+        return cursor.rowcount > 0
+    finally:
+        table_cursor.close()
+        cursor.close()
+        conn.close()
+
+
+def can_manage_maintenance():
+    return session.get("logged_in") and session.get("role") in ("Respo", "Integ")
  
 AUTH_PEPPER = os.getenv("AUTH_PEPPER", "dev-pepper-change-me")
 SCRYPT_PARAMS = {"n": 2**14, "r": 8, "p": 1, "dklen": 64}
@@ -197,6 +237,9 @@ def dashboard_op():
  
 @app.route("/planifier_maintenance", methods=["POST"])
 def planifier_maintenance():
+    if not can_manage_maintenance():
+        return jsonify({"success": False, "message": "Accès refusé."}), 403
+
     date = (request.form.get("date_maintenance") or "").strip()
     commentaire = (request.form.get("commentaire") or "").strip()
  
@@ -211,6 +254,60 @@ def planifier_maintenance():
     except mysql.connector.Error as exc:
         return jsonify({"success": False, "message": str(exc)}), 500
  
+    return jsonify({"success": True})
+
+
+@app.route("/modifier_maintenance", methods=["POST"])
+def modifier_maintenance():
+    if not can_manage_maintenance():
+        return jsonify({"success": False, "message": "Accès refusé."}), 403
+
+    id_inter = (request.form.get("id_inter") or "").strip()
+    date = (request.form.get("date_maintenance") or "").strip()
+    commentaire = (request.form.get("commentaire") or "").strip()
+
+    if not id_inter or not date or not commentaire:
+        return jsonify({"success": False, "message": "ID, date et commentaire obligatoires."}), 400
+
+    try:
+        id_inter_int = int(id_inter)
+    except ValueError:
+        return jsonify({"success": False, "message": "ID intervention invalide."}), 400
+
+    try:
+        horodatage = parse_horodatage(date)
+        updated = modifier_intervention(id_inter_int, commentaire, horodatage)
+        if not updated:
+            return jsonify({"success": False, "message": "Intervention introuvable."}), 404
+    except ValueError:
+        return jsonify({"success": False, "message": "Format de date invalide."}), 400
+    except mysql.connector.Error as exc:
+        return jsonify({"success": False, "message": str(exc)}), 500
+
+    return jsonify({"success": True})
+
+
+@app.route("/supprimer_maintenance", methods=["POST"])
+def supprimer_maintenance():
+    if not can_manage_maintenance():
+        return jsonify({"success": False, "message": "Accès refusé."}), 403
+
+    id_inter = (request.form.get("id_inter") or "").strip()
+    if not id_inter:
+        return jsonify({"success": False, "message": "ID intervention obligatoire."}), 400
+
+    try:
+        id_inter_int = int(id_inter)
+    except ValueError:
+        return jsonify({"success": False, "message": "ID intervention invalide."}), 400
+
+    try:
+        deleted = supprimer_intervention(id_inter_int)
+        if not deleted:
+            return jsonify({"success": False, "message": "Intervention introuvable."}), 404
+    except mysql.connector.Error as exc:
+        return jsonify({"success": False, "message": str(exc)}), 500
+
     return jsonify({"success": True})
  
 @app.route("/responsable")

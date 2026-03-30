@@ -31,6 +31,15 @@
                     background: #f9f9f9;
                 }
 
+                .maintenance-action-btn {
+                    border: none;
+                    background: transparent;
+                    cursor: pointer;
+                    font-size: 1.1rem;
+                    margin-right: 8px;
+                    padding: 0;
+                }
+
         </style>
 </head>
 <body>
@@ -91,12 +100,29 @@
                         <tr>
                             <th>Date</th>
                             <th>Commentaire</th>
+                            <th>Actions</th>
                         </tr>
 
                         {% for intervention in interventions %}
                         <tr>
-                            <td>{{ intervention.horodatage }}</td>
+                            <td>{{ intervention.horodatage.strftime('%Y-%m-%d') if intervention.horodatage else '' }}</td>
                             <td>{{ intervention.nom }}</td>
+                            <td>
+                                <button
+                                    type="button"
+                                    class="maintenance-action-btn edit-maintenance-btn"
+                                    data-id="{{ intervention.id_inter }}"
+                                    data-date="{{ intervention.horodatage.strftime('%Y-%m-%d') if intervention.horodatage else '' }}"
+                                    data-commentaire="{{ intervention.nom }}"
+                                    title="Modifier"
+                                >✏️</button>
+                                <button
+                                    type="button"
+                                    class="maintenance-action-btn delete-maintenance-btn"
+                                    data-id="{{ intervention.id_inter }}"
+                                    title="Supprimer"
+                                >🗑️</button>
+                            </td>
                         </tr>
                         {% endfor %}
                     </table>
@@ -185,11 +211,12 @@
             <div style="background:rgb(202, 198, 198); padding:20px; border-radius:8px; min-width:300px; position:relative;">
             <h3>Planifier une maintenance</h3>
             <form id="maintenanceForm" method="post" action="/planifier_maintenance">
+                <input type="hidden" id="id_inter" name="id_inter">
                 <label for="date_maintenance">Date :</label>
                 <input type="date" id="date_maintenance" name="date_maintenance" required><br><br>
                 <label for="commentaire">Commentaire :</label>
                 <input type="text" id="commentaire" name="commentaire" required><br><br>
-                <button type="submit">Enregistrer</button>
+                <button type="submit" id="saveMaintenanceBtn">Enregistrer</button>
                 <button type="button" id="closeModalBtn" style="margin-left:10px;">Annuler</button>
             </form>
             </div>
@@ -252,18 +279,81 @@
         const closeModalBtn = document.getElementById('closeModalBtn');
         const maintenanceModal = document.getElementById('maintenanceModal');
         const maintenanceForm = document.getElementById('maintenanceForm');
+        const dateInput = document.getElementById('date_maintenance');
+        const commentaireInput = document.getElementById('commentaire');
+        const idInput = document.getElementById('id_inter');
+        const saveMaintenanceBtn = document.getElementById('saveMaintenanceBtn');
+        const modalTitle = maintenanceModal ? maintenanceModal.querySelector('h3') : null;
+        const editButtons = document.querySelectorAll('.edit-maintenance-btn');
+        const deleteButtons = document.querySelectorAll('.delete-maintenance-btn');
 
-        if (openModalBtn && closeModalBtn && maintenanceModal && maintenanceForm) {
+        if (openModalBtn && closeModalBtn && maintenanceModal && maintenanceForm && dateInput && commentaireInput && idInput && saveMaintenanceBtn && modalTitle) {
             openModalBtn.onclick = function() {
+                idInput.value = '';
+                maintenanceForm.action = '/planifier_maintenance';
+                modalTitle.textContent = 'Planifier une maintenance';
+                saveMaintenanceBtn.textContent = 'Enregistrer';
+                dateInput.value = '';
+                commentaireInput.value = '';
                 maintenanceModal.style.display = 'flex';
             };
+
             closeModalBtn.onclick = function() {
                 maintenanceModal.style.display = 'none';
             };
+
+            editButtons.forEach(button => {
+                button.onclick = function() {
+                    idInput.value = this.dataset.id || '';
+                    dateInput.value = this.dataset.date || '';
+                    commentaireInput.value = this.dataset.commentaire || '';
+                    maintenanceForm.action = '/modifier_maintenance';
+                    modalTitle.textContent = 'Modifier une maintenance';
+                    saveMaintenanceBtn.textContent = 'Mettre à jour';
+                    maintenanceModal.style.display = 'flex';
+                };
+            });
+
+            deleteButtons.forEach(button => {
+                button.onclick = function() {
+                    const idInter = this.dataset.id;
+                    if (!idInter) {
+                        return;
+                    }
+
+                    if (!confirm('Confirmer la suppression de cette opération planifiée ?')) {
+                        return;
+                    }
+
+                    const formData = new FormData();
+                    formData.append('id_inter', idInter);
+
+                    fetch('/supprimer_maintenance', {
+                        method: 'POST',
+                        body: formData
+                    })
+                    .then(async r => {
+                        const data = await r.json();
+                        if (!r.ok) {
+                            throw new Error(data.message || "Erreur lors de la suppression.");
+                        }
+                        return data;
+                    })
+                    .then(data => {
+                        if (data.success) {
+                            window.location.reload();
+                        } else {
+                            alert(data.message || "Erreur lors de la suppression.");
+                        }
+                    })
+                    .catch(error => alert(error.message || "Erreur de connexion au serveur."));
+                };
+            });
+
             maintenanceForm.onsubmit = function(e) {
                 e.preventDefault();
                 const formData = new FormData(this);
-                fetch('/planifier_maintenance', {
+                fetch(this.action, {
                     method: 'POST',
                     body: formData
                 })
