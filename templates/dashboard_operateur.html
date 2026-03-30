@@ -217,24 +217,24 @@
             <button class="accordion-header">Nouveau role</button>
             <div class="accordion-content">
                 <div style="padding: 15px;">
-                    <form id="adminUserForm" method="post" action="/create_user" style="display: grid; grid-template-columns: repeat(2, minmax(220px, 1fr)); gap: 16px; align-items: end;">
-                        <div>
+                    <form id="adminUserForm" method="post" action="/create_user" style="display: grid; grid-template-columns: 1fr 1fr 1fr 1fr 1fr auto; gap: 16px; align-items: end;">
+                        <div style="min-width: 0;">
                             <label for="nom">Nom</label><br>
                             <input type="text" id="nom" name="nom" required style="width: 100%; padding: 8px;">
                         </div>
-                        <div>
+                        <div style="min-width: 0;">
                             <label for="prenom">Prénom</label><br>
                             <input type="text" id="prenom" name="prenom" required style="width: 100%; padding: 8px;">
                         </div>
-                        <div>
+                        <div style="min-width: 0;">
                             <label for="identifiant">Identifiant</label><br>
                             <input type="text" id="identifiant" name="identifiant" required style="width: 100%; padding: 8px;">
                         </div>
-                        <div>
+                        <div style="min-width: 0;">
                             <label for="mot_de_passe">Mot de passe</label><br>
                             <input type="password" id="mot_de_passe" name="mot_de_passe" required style="width: 100%; padding: 8px;">
                         </div>
-                        <div>
+                        <div style="min-width: 0;">
                             <label for="role">Choix du role</label><br>
                             <select id="role" name="role" required style="width: 100%; padding: 8px;">
                                 <option value="" disabled selected>Sélectionner un rôle</option>
@@ -243,8 +243,8 @@
                                 {% endfor %}
                             </select>
                         </div>
-                        <div>
-                            <button type="submit" id="adminUserSubmitBtn">Validation</button>
+                        <div style="white-space: nowrap;">
+                            <button type="submit" id="adminUserSubmitBtn" style="padding: 9px 18px;">Validation</button>
                         </div>
                     </form>
 
