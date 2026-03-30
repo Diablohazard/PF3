@@ -183,6 +183,14 @@ def authenticate_user(username, password):
                 return account["role"]
             return None
 
+        # Compatibilité temporaire : anciennes entrées générées avec username/password inversés.
+        computed_username_hash_legacy = scrypt_hex(password, account["username_salt"], "username")
+        computed_password_hash_legacy = scrypt_hex(username, account["password_salt"], "password")
+        if hmac.compare_digest(expected_username_hash, computed_username_hash_legacy) and hmac.compare_digest(
+            account["password_hash"], computed_password_hash_legacy
+        ):
+            return account["role"]
+
     return None
 
 
