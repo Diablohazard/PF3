@@ -318,6 +318,25 @@ def supprimer_maintenance():
 
     return jsonify({"success": True})
  
+@app.route("/get_interventions")
+def get_interventions_json():
+    if not session.get("logged_in"):
+        return jsonify({"success": False, "message": "Non authentifié."}), 401
+    try:
+        interventions = recuperer_interventions()
+    except mysql.connector.Error as exc:
+        return jsonify({"success": False, "message": str(exc)}), 500
+    result = [
+        {
+            "id_inter": row["id_inter"],
+            "nom": row["nom"],
+            "horodatage": row["horodatage"].strftime("%Y-%m-%d") if row["horodatage"] else "",
+        }
+        for row in interventions
+    ]
+    return jsonify({"success": True, "interventions": result})
+
+
 @app.route("/responsable")
 def dashboard_resp():
     return render_template("dashboard_SB_respo.html")

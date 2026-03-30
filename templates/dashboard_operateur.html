@@ -97,12 +97,14 @@
             <div class="accordion-content">
                 <div class="maintenance">
                     <table id="maintenanceTable">
-                        <tr>
-                            <th>Date</th>
-                            <th>Commentaire</th>
-                            <th>Actions</th>
-                        </tr>
-
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Commentaire</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="maintenanceTableBody">
                         {% for intervention in interventions %}
                         <tr>
                             <td>{{ intervention.horodatage.strftime('%Y-%m-%d') if intervention.horodatage else '' }}</td>
@@ -125,6 +127,7 @@
                             </td>
                         </tr>
                         {% endfor %}
+                        </tbody>
                     </table>
                     <button id="openModalBtn">BP Planifier</button>
                 </div>
@@ -284,8 +287,95 @@
         const idInput = document.getElementById('id_inter');
         const saveMaintenanceBtn = document.getElementById('saveMaintenanceBtn');
         const modalTitle = maintenanceModal ? maintenanceModal.querySelector('h3') : null;
-        const editButtons = document.querySelectorAll('.edit-maintenance-btn');
-        const deleteButtons = document.querySelectorAll('.delete-maintenance-btn');
+
+        function escapeHtml(text) {
+            return String(text)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;');
+        }
+
+        function refreshMaintenanceTable() {
+            fetch('/get_interventions')
+                .then(r => r.json())
+                .then(data => {
+                    if (!data.success) return;
+                    const tbody = document.getElementById('maintenanceTableBody');
+                    if (!tbody) return;
+                    const maintenanceContent = tbody.closest('.accordion-content');
+
+                    tbody.innerHTML = '';
+                    data.interventions.forEach(inter => {
+                        const tr = document.createElement('tr');
+                        tr.innerHTML =
+                            `<td>${escapeHtml(inter.horodatage)}</td>` +
+                            `<td>${escapeHtml(inter.nom)}</td>` +
+                            `<td>` +
+                                `<button type="button" class="maintenance-action-btn edit-maintenance-btn"` +
+                                    ` data-id="${inter.id_inter}"` +
+                                    ` data-date="${escapeHtml(inter.horodatage)}"` +
+                                    ` data-commentaire="${escapeHtml(inter.nom)}"` +
+                                    ` title="Modifier">✏️</button>` +
+                                `<button type="button" class="maintenance-action-btn delete-maintenance-btn"` +
+                                    ` data-id="${inter.id_inter}"` +
+                                    ` title="Supprimer">🗑️</button>` +
+                            `</td>`;
+                        tbody.appendChild(tr);
+                    });
+
+                    attachMaintenanceActions();
+
+                    // Recalcule la hauteur de l'accordéon pour qu'il s'ajuste
+                    if (maintenanceContent && maintenanceContent.style.maxHeight) {
+                        maintenanceContent.style.maxHeight = maintenanceContent.scrollHeight + 'px';
+                    }
+
+                    if (maintenanceModal) maintenanceModal.style.display = 'none';
+                })
+                .catch(err => alert(err.message || 'Erreur de rafraîchissement.'));
+        }
+
+        function attachMaintenanceActions() {
+            document.querySelectorAll('.edit-maintenance-btn').forEach(button => {
+                button.onclick = function() {
+                    if (!idInput || !dateInput || !commentaireInput || !maintenanceForm || !modalTitle || !saveMaintenanceBtn) return;
+                    idInput.value = this.dataset.id || '';
+                    dateInput.value = this.dataset.date || '';
+                    commentaireInput.value = this.dataset.commentaire || '';
+                    maintenanceForm.action = '/modifier_maintenance';
+                    modalTitle.textContent = 'Modifier une maintenance';
+                    saveMaintenanceBtn.textContent = 'Mettre à jour';
+                    maintenanceModal.style.display = 'flex';
+                };
+            });
+
+            document.querySelectorAll('.delete-maintenance-btn').forEach(button => {
+                button.onclick = function() {
+                    const idInter = this.dataset.id;
+                    if (!idInter) return;
+                    if (!confirm('Confirmer la suppression de cette opération planifiée ?')) return;
+
+                    const formData = new FormData();
+                    formData.append('id_inter', idInter);
+
+                    fetch('/supprimer_maintenance', { method: 'POST', body: formData })
+                        .then(async r => {
+                            const data = await r.json();
+                            if (!r.ok) throw new Error(data.message || 'Erreur lors de la suppression.');
+                            return data;
+                        })
+                        .then(data => {
+                            if (data.success) {
+                                refreshMaintenanceTable();
+                            } else {
+                                alert(data.message || 'Erreur lors de la suppression.');
+                            }
+                        })
+                        .catch(error => alert(error.message || 'Erreur de connexion au serveur.'));
+                };
+            });
+        }
 
         if (openModalBtn && closeModalBtn && maintenanceModal && maintenanceForm && dateInput && commentaireInput && idInput && saveMaintenanceBtn && modalTitle) {
             openModalBtn.onclick = function() {
@@ -302,76 +392,25 @@
                 maintenanceModal.style.display = 'none';
             };
 
-            editButtons.forEach(button => {
-                button.onclick = function() {
-                    idInput.value = this.dataset.id || '';
-                    dateInput.value = this.dataset.date || '';
-                    commentaireInput.value = this.dataset.commentaire || '';
-                    maintenanceForm.action = '/modifier_maintenance';
-                    modalTitle.textContent = 'Modifier une maintenance';
-                    saveMaintenanceBtn.textContent = 'Mettre à jour';
-                    maintenanceModal.style.display = 'flex';
-                };
-            });
-
-            deleteButtons.forEach(button => {
-                button.onclick = function() {
-                    const idInter = this.dataset.id;
-                    if (!idInter) {
-                        return;
-                    }
-
-                    if (!confirm('Confirmer la suppression de cette opération planifiée ?')) {
-                        return;
-                    }
-
-                    const formData = new FormData();
-                    formData.append('id_inter', idInter);
-
-                    fetch('/supprimer_maintenance', {
-                        method: 'POST',
-                        body: formData
-                    })
-                    .then(async r => {
-                        const data = await r.json();
-                        if (!r.ok) {
-                            throw new Error(data.message || "Erreur lors de la suppression.");
-                        }
-                        return data;
-                    })
-                    .then(data => {
-                        if (data.success) {
-                            window.location.reload();
-                        } else {
-                            alert(data.message || "Erreur lors de la suppression.");
-                        }
-                    })
-                    .catch(error => alert(error.message || "Erreur de connexion au serveur."));
-                };
-            });
+            attachMaintenanceActions();
 
             maintenanceForm.onsubmit = function(e) {
                 e.preventDefault();
                 const formData = new FormData(this);
-                fetch(this.action, {
-                    method: 'POST',
-                    body: formData
-                })
-                .then(async r => {
-                    const data = await r.json();
-                    if (!r.ok) {
-                        throw new Error(data.message || "Erreur lors de l'enregistrement.");
-                    }
-                    return data;
-                })
-                .then(data => {
-                    if (data.success) {
-                        window.location.reload();
-                    } else {
-                        alert(data.message || "Erreur lors de l'enregistrement.");
-                    }
-                })
-                .catch(error => alert(error.message || "Erreur de connexion au serveur."));
+                fetch(this.action, { method: 'POST', body: formData })
+                    .then(async r => {
+                        const data = await r.json();
+                        if (!r.ok) throw new Error(data.message || "Erreur lors de l'enregistrement.");
+                        return data;
+                    })
+                    .then(data => {
+                        if (data.success) {
+                            refreshMaintenanceTable();
+                        } else {
+                            alert(data.message || "Erreur lors de l'enregistrement.");
+                        }
+                    })
+                    .catch(error => alert(error.message || 'Erreur de connexion au serveur.'));
             };
         }
     </script>
