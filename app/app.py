@@ -239,19 +239,19 @@ def get_role_by_user_id(cursor, users_table_name, roles_table_name, user_id, use
     users_columns = get_table_columns(cursor, users_table_name)
     role_columns = get_table_columns(cursor, roles_table_name)
 
-    if "id_role" in users_columns and user_id_role:
+    if "id_user" in role_columns:
         cursor.execute(
-            f"SELECT nom FROM `{roles_table_name}` WHERE id_role = %s LIMIT 1",
-            (user_id_role,),
+            f"SELECT nom FROM `{roles_table_name}` WHERE id_user = %s ORDER BY id_role DESC LIMIT 1",
+            (user_id,),
         )
         row = cursor.fetchone()
         if row and row[0]:
             return row[0]
 
-    if "id_user" in role_columns:
+    if "id_role" in users_columns and user_id_role:
         cursor.execute(
-            f"SELECT nom FROM `{roles_table_name}` WHERE id_user = %s ORDER BY id_role DESC LIMIT 1",
-            (user_id,),
+            f"SELECT nom FROM `{roles_table_name}` WHERE id_role = %s LIMIT 1",
+            (user_id_role,),
         )
         row = cursor.fetchone()
         if row and row[0]:
@@ -264,17 +264,9 @@ def set_role_for_user(cursor, users_table_name, roles_table_name, user_id, role_
     users_columns = get_table_columns(cursor, users_table_name)
     role_columns = get_table_columns(cursor, roles_table_name)
 
-    if "id_role" in users_columns:
-        role_id = get_or_create_role_id(cursor, roles_table_name, role_name, role_columns)
-        cursor.execute(
-            f"UPDATE `{users_table_name}` SET id_role = %s WHERE id_user = %s",
-            (role_id, user_id),
-        )
-        return
-
     if "id_user" in role_columns:
         cursor.execute(
-            f"SELECT id_role FROM `{roles_table_name}` WHERE id_user = %s LIMIT 1",
+            f"SELECT id_role FROM `{roles_table_name}` WHERE id_user = %s ORDER BY id_role DESC LIMIT 1",
             (user_id,),
         )
         existing = cursor.fetchone()
@@ -284,11 +276,27 @@ def set_role_for_user(cursor, users_table_name, roles_table_name, user_id, role_
                 f"UPDATE `{roles_table_name}` SET nom = %s WHERE id_role = %s",
                 (role_name, existing[0]),
             )
+            role_id = existing[0]
         else:
             cursor.execute(
                 f"INSERT INTO `{roles_table_name}` (nom, id_user) VALUES (%s, %s)",
                 (role_name, user_id),
             )
+            role_id = cursor.lastrowid
+
+        if "id_role" in users_columns:
+            cursor.execute(
+                f"UPDATE `{users_table_name}` SET id_role = %s WHERE id_user = %s",
+                (role_id, user_id),
+            )
+        return
+
+    if "id_role" in users_columns:
+        role_id = get_or_create_role_id(cursor, roles_table_name, role_name, role_columns)
+        cursor.execute(
+            f"UPDATE `{users_table_name}` SET id_role = %s WHERE id_user = %s",
+            (role_id, user_id),
+        )
 
 
 def fetch_registered_users():
