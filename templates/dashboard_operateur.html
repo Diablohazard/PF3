@@ -44,7 +44,13 @@
         </form>
     </div>
     <div style="flex: 1; text-align: center; font-weight: bold;">
+        {% if session.get('role') == 'Respo' %}
+        RESPONSABLE
+        {% elif session.get('role') == 'Integ' %}
+        INTEGRATEUR
+        {% else %}
         OPERATEUR
+        {% endif %}
     </div>
     <div style="flex: 1; text-align: right;" id="datetime"></div>
 </header>
@@ -52,6 +58,8 @@
 <div class="container">
 
     {% set is_responsable = session.get('role') == 'Respo' %}
+    {% set is_integrateur = session.get('role') == 'Integ' %}
+    {% set can_view_responsable_sections = is_responsable or is_integrateur %}
 
     <div class="accordion">
 
@@ -63,9 +71,8 @@
             </div>
         </div>
 
-        <!-- Consommation (caché si non responsable) -->
-        {% if is_responsable %}
-        <div class="accordion-item">
+        <!-- Consommation (visible responsable + intégrateur) -->
+        <div class="accordion-item" {% if not can_view_responsable_sections %}hidden{% endif %}>
             <button class="accordion-header">Suivi des consommations électriques</button>
             <div class="accordion-content">
                 <div class="charts">
@@ -74,21 +81,9 @@
                 </div>
             </div>
         </div>
-        {% else %}
-        <div class="accordion-item" hidden>
-            <button class="accordion-header">Suivi des consommations électriques</button>
-            <div class="accordion-content">
-                <div class="charts">
-                    <div class="chart">Graphique 1</div>
-                    <div class="chart">Graphique 2</div>
-                </div>
-            </div>
-        </div>
-        {% endif %}
 
-        <!-- Maintenance (caché si non responsable) -->
-        {% if is_responsable %}
-        <div class="accordion-item">
+        <!-- Maintenance (visible responsable + intégrateur) -->
+        <div class="accordion-item" {% if not can_view_responsable_sections %}hidden{% endif %}>
             <button class="accordion-header">Opérations de maintenance planifiées</button>
             <div class="accordion-content">
                 <div class="maintenance">
@@ -109,32 +104,83 @@
                 </div>
             </div>
         </div>
-        {% else %}
-        <div class="accordion-item" hidden>
-            <button class="accordion-header">Opérations de maintenance planifiées</button>
-            <div class="accordion-content">
-                <div class="maintenance">
-                    <table id="maintenanceTable">
-                        <tr>
-                            <th>Date</th>
-                            <th>Commentaire</th>
-                        </tr>
 
-                        {% for intervention in interventions %}
-                        <tr>
-                            <td>{{ intervention.horodatage }}</td>
-                            <td>{{ intervention.nom }}</td>
-                        </tr>
-                        {% endfor %}
-                    </table>
-                    <button id="openModalBtn">BP Planifier</button>
+        <!-- Historique de charge (spécifique intégrateur) -->
+        <div class="accordion-item" {% if not is_integrateur %}hidden{% endif %}>
+            <button class="accordion-header">Historique de charge</button>
+            <div class="accordion-content">
+                <div style="display: flex; gap: 10px; margin-top: 10px; align-items: flex-start;">
+                    <div class="accordion-item" style="flex: 1;">
+                        <button class="accordion-header" style="min-height: 120px; width: 100%; display: flex; align-items: center; justify-content: center; text-align: center;">
+                            Charge CPU
+                        </button>
+                        <div class="accordion-content">
+                            <div style="padding: 10px; text-align: center;">
+                                <p>Utilisation : <span id="cpu-load">-- %</span></p>
+                                <div style="width: 100%; background: #eee; height: 10px; border-radius: 5px;">
+                                    <div style="width: 45%; height: 100%; background: #4caf50; border-radius: 5px;"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="accordion-item" style="flex: 1;">
+                        <button class="accordion-header" style="min-height: 120px; width: 100%; display: flex; align-items: center; justify-content: center; text-align: center;">
+                            RAM CPU
+                        </button>
+                        <div class="accordion-content">
+                            <div style="padding: 10px; text-align: center;">
+                                <span id="ram-usage" style="font-size: 1.2rem; font-weight: bold;">8 / 16 Go</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="accordion-item" style="flex: 1;">
+                        <button class="accordion-header" style="min-height: 120px; width: 100%; display: flex; align-items: center; justify-content: center; text-align: center;">
+                            Temp. CPU
+                        </button>
+                        <div class="accordion-content">
+                            <div style="padding: 10px; text-align: center;">
+                                <span id="cpu-temp" style="font-size: 1.2rem; font-weight: bold; color: #e67e22;">55 °C</span>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
-        {% endif %}
+
+        <!-- Paramétrage des alertes (spécifique intégrateur) -->
+        <div class="accordion-item" {% if not is_integrateur %}hidden{% endif %}>
+            <button class="accordion-header">Paramétrage des alertes</button>
+            <div class="accordion-content">
+                <div style="padding: 15px;">
+                    <table style="width: 100%; border-collapse: collapse; background: white;">
+                        <thead>
+                            <tr style="background-color: #f3f4f6; border-bottom: 2px solid #e5e7eb;">
+                                <th style="padding: 12px; text-align: left;">Alerte</th>
+                                <th style="padding: 12px; text-align: left;">Seuil</th>
+                                <th style="padding: 12px; text-align: left;">Statut</th>
+                            </tr>
+                        </thead>
+                        <tbody style="color: black;">
+                            <tr style="border-bottom: 1px solid #eee;">
+                                <td style="padding: 12px;">Surchauffe CPU</td>
+                                <td style="padding: 12px;">85 °C</td>
+                                <td style="padding: 12px;">Active</td>
+                            </tr>
+                            <tr style="border-bottom: 1px solid #eee;">
+                                <td style="padding: 12px;">Usage RAM élevé</td>
+                                <td style="padding: 12px;">90 %</td>
+                                <td style="padding: 12px;">Active</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
 
         <!-- Modal (cachée si non responsable) -->
-        {% if is_responsable %}
+        {% if can_view_responsable_sections %}
         <div id="maintenanceModal" style="display:none; position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.5); align-items:center; justify-content:center;">
             <div style="background:rgb(202, 198, 198); padding:20px; border-radius:8px; min-width:300px; position:relative;">
             <h3>Planifier une maintenance</h3>

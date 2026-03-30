@@ -112,7 +112,7 @@ def login():
                 return redirect(url_for("dashboard_op"))
             
             elif user == "Integ":
-                return redirect(url_for("dashboard_integ"))
+                return redirect(url_for("dashboard_op"))
             
             elif user == "Operat":
                 return redirect(url_for("dashboard_op"))
