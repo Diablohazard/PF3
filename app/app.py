@@ -1,4 +1,6 @@
 import os
+import hashlib
+import hmac
 from datetime import datetime
  
 import mysql.connector
@@ -87,35 +89,98 @@ def recuperer_interventions():
         cursor.close()
         conn.close()
  
-# On définit les identifiants pour les deux types d'utilisateurs
-USERS = {
-    "Operat": "operateur",
-    "Respo": "responsable",
-    "Integ": "integrateur",
-    "Admin": "administrateur"
-}
+AUTH_PEPPER = os.getenv("AUTH_PEPPER", "dev-pepper-change-me")
+SCRYPT_PARAMS = {"n": 2**14, "r": 8, "p": 1, "dklen": 64}
+
+# Identifiants stockés sous forme hachée (scrypt salé + poivré)
+USERS_HASHED = [
+    {
+        "role": "Operat",
+        "username_salt": "b84a49226efe6de60ea68eca437f9993",
+        "username_hash": "b86c25dd254b20ba49c0c673edcfac925fa26e792d6315fbfbd5be54b43f30b2bf99b6ee70f3515c78ed78f691a94f4c5ae01e39d019c3084f4f0474eeb2cc88",
+        "password_salt": "3927ff3bdfd63b619ee5c15ad827fc0e",
+        "password_hash": "c72d57bb5e33086600ae39437d814e207127196a80e09592b744d9f032e797e7895c37e901c54ebf2da75557d8ad84d9d71b7d0cdb84ed0a17d11851f18bef0d",
+    },
+    {
+        "role": "Respo",
+        "username_salt": "47c580670c1f28c1f4ee370435db56eb",
+        "username_hash": "3d6a7163fb861b2ae13f7e95ca131f996bb044f54977863eaf7e8d12b852c72ca3ac67b21f94fff082339ec9f9ff04ea7c1146f90f77018e951823ac0be189dc",
+        "password_salt": "e808fee4bae9b64d6527eed397ac853f",
+        "password_hash": "1c5c499b7ad867aa7e502a246064fa8089acf3e98610bd1dd59c3c5a1115c471b1b523ca31daac38a6d7ceadd09ea7073dcf1d1b07c592c8b6a01cf4f4b58729",
+    },
+    {
+        "role": "Integ",
+        "username_salt": "3d88b1505e0d69bfa615d82b5d68ffe0",
+        "username_hash": "2499c728f0b6456fa397421f25796005d454a9e81fc1046b6cfda7f3eba794892d6675b9239b83b7fd81ebb6d8830ccbe8178c88649140841d3049a00a885e38",
+        "password_salt": "b08734f827c86bc5b57f54b1860d412a",
+        "password_hash": "d6d23fa77df8d0ba06874568bf6a18165f2c8fa0488eaef7373c33f04bcd05576f13480b8a7302892b5842aee621354f585f92b6b1d3051af93f5779f360869e",
+    },
+    {
+        "role": "Admin",
+        "username_salt": "0b96e3b2cf350a8979964b8bebec32b5",
+        "username_hash": "821d36427abda02b2f1b2f5b2736aeb029594a1dfd479952a3e87a687ceecbd4ee1a41919ebfd0837468c3d803ed47ae8f049455d33a1d3db0b3f65a79847cfe",
+        "password_salt": "8461eaf628a1bace8462d1482e966ba0",
+        "password_hash": "d1b04cf2bc715a86280a9bf8b7e57f06352b98f51ae86b823f1cb8c7ffb2a83c08397a0e15b9131e8165da8442136e916afe64a4be9c3e80f1bb315a01e10667",
+    },
+]
+
+
+def scrypt_hex(value, salt_hex, purpose):
+    salt = bytes.fromhex(salt_hex)
+    payload = f"{purpose}:{value}:{AUTH_PEPPER}".encode("utf-8")
+    return hashlib.scrypt(payload, salt=salt, **SCRYPT_PARAMS).hex()
+
+
+def authenticate_user(username, password):
+    for account in USERS_HASHED:
+        expected_username_hash = account["username_hash"]
+        computed_username_hash = scrypt_hex(username, account["username_salt"], "username")
+
+        if hmac.compare_digest(expected_username_hash, computed_username_hash):
+            expected_password_hash = account["password_hash"]
+            computed_password_hash = scrypt_hex(password, account["password_salt"], "password")
+            if hmac.compare_digest(expected_password_hash, computed_password_hash):
+                return account["role"]
+            return None
+
+    return None
+
+
+def build_hashed_credentials(username, password):
+    username_salt = os.urandom(16).hex()
+    password_salt = os.urandom(16).hex()
+    return {
+        "username_salt": username_salt,
+        "username_hash": scrypt_hex(username, username_salt, "username"),
+        "password_salt": password_salt,
+        "password_hash": scrypt_hex(password, password_salt, "password"),
+    }
  
 @app.route("/", methods=["GET", "POST"])
 def login():
     error = None
     if request.method == "POST":
-        user = request.form.get("username")
-        password = request.form.get("password")
+        user = (request.form.get("username") or "").strip()
+        password = (request.form.get("password") or "").strip()
+        role = authenticate_user(user, password)
  
-        # 1. Vérification si l'utilisateur existe et si le mot de passe est correct
-        if user in USERS and USERS[user] == password:
+        # 1. Vérification avec identifiants hachés
+        if role:
             
             session["logged_in"] = True
-            session["role"] = user
+            session["role"] = role
             # 2. Redirection selon le rôle
-            if user == "Respo":
+            if role == "Respo":
                 return redirect(url_for("dashboard_op"))
             
-            elif user == "Integ":
+            elif role == "Integ":
                 return redirect(url_for("dashboard_op"))
             
-            elif user == "Operat":
+            elif role == "Operat":
                 return redirect(url_for("dashboard_op"))
+
+            elif role == "Admin":
+                return redirect(url_for("admin"))
         
         else:
             error = "Identifiants incorrects"
@@ -166,11 +231,15 @@ def admin():
 def create_user():
     username = request.form["new_username"]
     password = request.form["new_password"]
+    hashed = build_hashed_credentials(username, password)
  
     # Enregistrement dans le fichier users.txt à la racine du projet
     users_file_path = os.path.join(os.path.dirname(__file__), "../users.txt")
     with open(users_file_path, "a") as f:
-        f.write(f"{username}:{password}\n")
+        f.write(
+            f"{hashed['username_salt']}:{hashed['username_hash']}:"
+            f"{hashed['password_salt']}:{hashed['password_hash']}\n"
+        )
  
     return render_template("admin.html", message="Utilisateur créé avec succès !")
  
