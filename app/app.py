@@ -82,7 +82,7 @@ def recuperer_interventions():
     try:
         table_name = get_intervention_table_name(table_cursor)
         ensure_intervention_table(table_cursor, table_name)
-        cursor.execute(f"SELECT id_inter, nom, horodatage FROM `{table_name}` ORDER BY horodatage DESC")
+        cursor.execute(f"SELECT id_inter, nom, horodatage FROM `{table_name}` ORDER BY horodatage ASC")
         return cursor.fetchall()
     finally:
         table_cursor.close()
