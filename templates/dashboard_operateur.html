@@ -1,0 +1,660 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title>Dashboard</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <style>
+        .accordion {
+            margin-bottom: 24px; /* espace entre chaque feuillet */
+        }
+
+            /* Si tes feuillets sont des éléments .accordion-item ou similaires, adapte ainsi : */
+        .accordion-item {
+            margin-bottom: 24px;
+        }
+
+                #maintenanceTable {
+                    width: 100%;
+                    border-collapse: separate;
+                    border-spacing: 30px 10px;
+                }
+                #maintenanceTable th, #maintenanceTable td {
+                    padding: 12px 24px;
+                    text-align: left;
+                    font-size: 1.1em;
+                }
+                #maintenanceTable th {
+                    background: #e8f6ef;
+                }
+                #maintenanceTable tr:not(:first-child) {
+                    background: #f9f9f9;
+                }
+
+                .maintenance-action-btn {
+                    border: none;
+                    background: transparent;
+                    cursor: pointer;
+                    font-size: 1.1rem;
+                    margin-right: 8px;
+                    padding: 0;
+                }
+
+        </style>
+</head>
+<body>
+
+<header style="background: #cffbcd; color: rgb(0, 0, 0); display: flex; align-items: center; justify-content: space-between; padding: 10px;">
+    <div style="flex: 1; text-align: left;">
+        <form action="/" method="get" style="display: inline;">
+            <button type="submit" style="background: rgb(0, 0, 0); color: #fcfcfc; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer;">
+                Déconnexion
+            </button>
+        </form>
+    </div>
+    <div style="flex: 1; text-align: center; font-weight: bold;">
+        {% if session.get('role') == 'Respo' %}
+        RESPONSABLE
+        {% elif session.get('role') == 'Integ' %}
+        INTEGRATEUR
+        {% elif session.get('role') == 'Admin' %}
+        ADMINISTRATEUR
+        {% else %}
+        OPERATEUR
+        {% endif %}
+    </div>
+    <div style="flex: 1; text-align: right;" id="datetime"></div>
+</header>
+
+<div class="container">
+
+    {% set is_responsable = session.get('role') == 'Respo' %}
+    {% set is_integrateur = session.get('role') == 'Integ' %}
+    {% set is_admin = session.get('role') == 'Admin' %}
+    {% set can_view_integrateur_sections = is_integrateur or is_admin %}
+    {% set can_view_responsable_sections = is_responsable or is_integrateur or is_admin %}
+
+    <div class="accordion">
+
+        <!-- Historique -->
+        <div class="accordion-item">
+            <button class="accordion-header">Historique des commandes</button>
+            <div class="accordion-content">
+                <p>Contenu historique...</p>
+            </div>
+        </div>
+
+        <!-- Consommation (visible responsable + intégrateur) -->
+        <div class="accordion-item" {% if not can_view_responsable_sections %}hidden{% endif %}>
+            <button class="accordion-header">Suivi des consommations électriques</button>
+            <div class="accordion-content">
+                <div class="charts">
+                    <div class="chart">Graphique 1</div>
+                    <div class="chart">Graphique 2</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Maintenance (visible responsable + intégrateur) -->
+        <div class="accordion-item" {% if not can_view_responsable_sections %}hidden{% endif %}>
+            <button class="accordion-header">Opérations de maintenance planifiées</button>
+            <div class="accordion-content">
+                <div class="maintenance">
+                    <table id="maintenanceTable">
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Commentaire</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="maintenanceTableBody">
+                        {% for intervention in interventions %}
+                        <tr>
+                            <td>{{ intervention.horodatage.strftime('%Y-%m-%d') if intervention.horodatage else '' }}</td>
+                            <td>{{ intervention.nom }}</td>
+                            <td>
+                                <button
+                                    type="button"
+                                    class="maintenance-action-btn edit-maintenance-btn"
+                                    data-id="{{ intervention.id_inter }}"
+                                    data-date="{{ intervention.horodatage.strftime('%Y-%m-%d') if intervention.horodatage else '' }}"
+                                    data-commentaire="{{ intervention.nom }}"
+                                    title="Modifier"
+                                >✏️</button>
+                                <button
+                                    type="button"
+                                    class="maintenance-action-btn delete-maintenance-btn"
+                                    data-id="{{ intervention.id_inter }}"
+                                    title="Supprimer"
+                                >🗑️</button>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                        </tbody>
+                    </table>
+                    <button id="openModalBtn">BP Planifier</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Historique de charge (spécifique intégrateur) -->
+        <div class="accordion-item" {% if not can_view_integrateur_sections %}hidden{% endif %}>
+            <button class="accordion-header">Historique de charge</button>
+            <div class="accordion-content">
+                <div style="display: flex; gap: 10px; margin-top: 10px; align-items: flex-start;">
+                    <div class="accordion-item" style="flex: 1;">
+                        <button class="accordion-header" style="min-height: 120px; width: 100%; display: flex; align-items: center; justify-content: center; text-align: center;">
+                            Charge CPU
+                        </button>
+                        <div class="accordion-content">
+                            <div style="padding: 10px; text-align: center;">
+                                <p>Utilisation : <span id="cpu-load">-- %</span></p>
+                                <div style="width: 100%; background: #eee; height: 10px; border-radius: 5px;">
+                                    <div style="width: 45%; height: 100%; background: #4caf50; border-radius: 5px;"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="accordion-item" style="flex: 1;">
+                        <button class="accordion-header" style="min-height: 120px; width: 100%; display: flex; align-items: center; justify-content: center; text-align: center;">
+                            RAM CPU
+                        </button>
+                        <div class="accordion-content">
+                            <div style="padding: 10px; text-align: center;">
+                                <span id="ram-usage" style="font-size: 1.2rem; font-weight: bold;">8 / 16 Go</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="accordion-item" style="flex: 1;">
+                        <button class="accordion-header" style="min-height: 120px; width: 100%; display: flex; align-items: center; justify-content: center; text-align: center;">
+                            Temp. CPU
+                        </button>
+                        <div class="accordion-content">
+                            <div style="padding: 10px; text-align: center;">
+                                <span id="cpu-temp" style="font-size: 1.2rem; font-weight: bold; color: #e67e22;">55 °C</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Paramétrage des alertes (spécifique intégrateur) -->
+        <div class="accordion-item" {% if not can_view_integrateur_sections %}hidden{% endif %}>
+            <button class="accordion-header">Paramétrage des alertes</button>
+            <div class="accordion-content">
+                <div style="padding: 15px;">
+                    <table style="width: 100%; border-collapse: collapse; background: white;">
+                        <thead>
+                            <tr style="background-color: #f3f4f6; border-bottom: 2px solid #e5e7eb;">
+                                <th style="padding: 12px; text-align: left;">Alerte</th>
+                                <th style="padding: 12px; text-align: left;">Seuil</th>
+                                <th style="padding: 12px; text-align: left;">Statut</th>
+                            </tr>
+                        </thead>
+                        <tbody style="color: black;">
+                            <tr style="border-bottom: 1px solid #eee;">
+                                <td style="padding: 12px;">Surchauffe CPU</td>
+                                <td style="padding: 12px;">85 °C</td>
+                                <td style="padding: 12px;">Active</td>
+                            </tr>
+                            <tr style="border-bottom: 1px solid #eee;">
+                                <td style="padding: 12px;">Usage RAM élevé</td>
+                                <td style="padding: 12px;">90 %</td>
+                                <td style="padding: 12px;">Active</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Nouveau rôle (spécifique administrateur) -->
+        <div class="accordion-item" {% if not is_admin %}hidden{% endif %}>
+            <button class="accordion-header">Nouveau role</button>
+            <div class="accordion-content">
+                <div style="padding: 15px;">
+                    <form id="adminUserForm" method="post" action="/create_user" style="display: grid; grid-template-columns: 1fr 1fr 1fr 1fr 1fr auto; gap: 16px; align-items: end;">
+                        <input type="hidden" id="original_identifiant" name="original_identifiant">
+                        <div style="min-width: 0;">
+                            <label for="nom">Nom</label><br>
+                            <input type="text" id="nom" name="nom" required style="width: 100%; padding: 8px;">
+                        </div>
+                        <div style="min-width: 0;">
+                            <label for="prenom">Prénom</label><br>
+                            <input type="text" id="prenom" name="prenom" required style="width: 100%; padding: 8px;">
+                        </div>
+                        <div style="min-width: 0;">
+                            <label for="identifiant">Identifiant</label><br>
+                            <input type="text" id="identifiant" name="identifiant" required style="width: 100%; padding: 8px;">
+                        </div>
+                        <div style="min-width: 0;">
+                            <label for="mot_de_passe">Mot de passe</label><br>
+                            <input type="password" id="mot_de_passe" name="mot_de_passe" required style="width: 100%; padding: 8px;">
+                        </div>
+                        <div style="min-width: 0;">
+                            <label for="role">Choix du role</label><br>
+                            <select id="role" name="role" required style="width: 100%; padding: 8px;">
+                                <option value="" disabled selected>Sélectionner un rôle</option>
+                                {% for role_key, role_label in available_roles.items() %}
+                                <option value="{{ role_key }}">{{ role_label }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div style="white-space: nowrap;">
+                            <button type="submit" id="adminUserSubmitBtn" style="padding: 9px 18px;">Validation</button>
+                            <button type="button" id="adminUserCancelBtn" style="padding: 9px 18px; display: none; margin-left: 8px;">Annuler</button>
+                        </div>
+                    </form>
+
+                    <p id="adminUserMessage" style="margin-top: 16px;"></p>
+
+                    <table id="adminUsersTable" style="width: 100%; border-collapse: collapse; margin-top: 20px; background: white;">
+                        <thead>
+                            <tr style="background-color: #f3f4f6; border-bottom: 2px solid #e5e7eb;">
+                                <th style="padding: 12px; text-align: left;">Nom</th>
+                                <th style="padding: 12px; text-align: left;">Prénom</th>
+                                <th style="padding: 12px; text-align: left;">Identifiant</th>
+                                <th style="padding: 12px; text-align: left;">Rôle</th>
+                                <th style="padding: 12px; text-align: left;">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="adminUsersTableBody">
+                            {% for user in registered_users %}
+                            <tr style="border-bottom: 1px solid #eee; color: black;">
+                                <td style="padding: 12px;">{{ user.nom }}</td>
+                                <td style="padding: 12px;">{{ user.prenom }}</td>
+                                <td style="padding: 12px;">{{ user.identifiant }}</td>
+                                <td style="padding: 12px;">{{ user.role_label }}</td>
+                                <td style="padding: 12px;">
+                                    <button type="button" class="maintenance-action-btn admin-edit-role-btn" data-nom="{{ user.nom }}" data-prenom="{{ user.prenom }}" data-identifiant="{{ user.identifiant }}" data-password="{{ user.mot_de_passe }}" data-role="{{ user.role }}" title="Modifier l'utilisateur">✏️</button>
+                                    <button type="button" class="maintenance-action-btn admin-delete-user-btn" data-identifiant="{{ user.identifiant }}" title="Supprimer">🗑️</button>
+                                </td>
+                            </tr>
+                            {% else %}
+                            <tr id="adminUsersEmptyRow" style="color: black;">
+                                <td colspan="5" style="padding: 12px; text-align: center;">Aucun utilisateur enregistré.</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Modal (cachée si non responsable) -->
+        {% if can_view_responsable_sections %}
+        <div id="maintenanceModal" style="display:none; position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.5); align-items:center; justify-content:center;">
+            <div style="background:rgb(202, 198, 198); padding:20px; border-radius:8px; min-width:300px; position:relative;">
+            <h3>Planifier une maintenance</h3>
+            <form id="maintenanceForm" method="post" action="/planifier_maintenance">
+                <input type="hidden" id="id_inter" name="id_inter">
+                <label for="date_maintenance">Date :</label>
+                <input type="date" id="date_maintenance" name="date_maintenance" required><br><br>
+                <label for="commentaire">Commentaire :</label>
+                <input type="text" id="commentaire" name="commentaire" required><br><br>
+                <button type="submit" id="saveMaintenanceBtn">Enregistrer</button>
+                <button type="button" id="closeModalBtn" style="margin-left:10px;">Annuler</button>
+            </form>
+            </div>
+        </div>
+        {% else %}
+        <div id="maintenanceModal" hidden>
+            <div style="background:rgb(202, 198, 198); padding:20px; border-radius:8px; min-width:300px; position:relative;">
+            <h3>Planifier une maintenance</h3>
+            <form id="maintenanceForm" method="post" action="/planifier_maintenance">
+                <label for="date_maintenance">Date :</label>
+                <input type="date" id="date_maintenance" name="date_maintenance" required><br><br>
+                <label for="commentaire">Commentaire :</label>
+                <input type="text" id="commentaire" name="commentaire" required><br><br>
+                <button type="submit">Enregistrer</button>
+                <button type="button" id="closeModalBtn" style="margin-left:10px;">Annuler</button>
+            </form>
+            </div>
+        </div>
+        {% endif %}
+    
+    </div>
+
+</div>
+
+<script>
+    function updateDateTime() {
+        const now = new Date();
+    
+        const date = now.toLocaleDateString('fr-FR');
+        const time = now.toLocaleTimeString('fr-FR');
+    
+        document.getElementById("datetime").innerHTML = date + " " + time;
+    }
+    
+    // Met à jour toutes les secondes
+    setInterval(updateDateTime, 1000);
+    
+    // Lancer immédiatement
+    updateDateTime();
+</script>
+
+<script>
+    const headers = document.querySelectorAll(".accordion-header");
+    
+    headers.forEach(header => {
+        header.addEventListener("click", () => {
+            const content = header.nextElementSibling;
+    
+            if (content.style.maxHeight) {
+                content.style.maxHeight = null;
+            } else {
+                content.style.maxHeight = content.scrollHeight + "px";
+            }
+        });
+    });
+    </script>
+
+    <script>
+        const openModalBtn = document.getElementById('openModalBtn');
+        const closeModalBtn = document.getElementById('closeModalBtn');
+        const maintenanceModal = document.getElementById('maintenanceModal');
+        const maintenanceForm = document.getElementById('maintenanceForm');
+        const dateInput = document.getElementById('date_maintenance');
+        const commentaireInput = document.getElementById('commentaire');
+        const idInput = document.getElementById('id_inter');
+        const saveMaintenanceBtn = document.getElementById('saveMaintenanceBtn');
+        const modalTitle = maintenanceModal ? maintenanceModal.querySelector('h3') : null;
+        const adminUserForm = document.getElementById('adminUserForm');
+        const adminUsersTableBody = document.getElementById('adminUsersTableBody');
+        const adminUserMessage = document.getElementById('adminUserMessage');
+        const adminUserSubmitBtn = document.getElementById('adminUserSubmitBtn');
+        const adminUserCancelBtn = document.getElementById('adminUserCancelBtn');
+        const adminOriginalIdentifiantInput = document.getElementById('original_identifiant');
+        const adminNomInput = document.getElementById('nom');
+        const adminPrenomInput = document.getElementById('prenom');
+        const adminIdentifiantInput = document.getElementById('identifiant');
+        const adminPasswordInput = document.getElementById('mot_de_passe');
+        const adminRoleInput = document.getElementById('role');
+        const availableRoleKeys = ['Operat', 'Respo', 'Integ', 'Admin'];
+
+        function escapeHtml(text) {
+            return String(text)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;');
+        }
+
+        function renderAdminUsers(users) {
+            if (!adminUsersTableBody) return;
+
+            adminUsersTableBody.innerHTML = '';
+
+            if (!users || users.length === 0) {
+                adminUsersTableBody.innerHTML = '<tr id="adminUsersEmptyRow" style="color: black;"><td colspan="5" style="padding: 12px; text-align: center;">Aucun utilisateur enregistré.</td></tr>';
+                return;
+            }
+
+            users.forEach(user => {
+                const tr = document.createElement('tr');
+                tr.style.borderBottom = '1px solid #eee';
+                tr.style.color = 'black';
+                tr.innerHTML =
+                    `<td style="padding: 12px;">${escapeHtml(user.nom)}</td>` +
+                    `<td style="padding: 12px;">${escapeHtml(user.prenom)}</td>` +
+                    `<td style="padding: 12px;">${escapeHtml(user.identifiant)}</td>` +
+                    `<td style="padding: 12px;">${escapeHtml(user.role_label || user.role)}</td>` +
+                    `<td style="padding: 12px;">` +
+                        `<button type="button" class="maintenance-action-btn admin-edit-role-btn"` +
+                            ` data-nom="${escapeHtml(user.nom)}"` +
+                            ` data-prenom="${escapeHtml(user.prenom)}"` +
+                            ` data-identifiant="${escapeHtml(user.identifiant)}"` +
+                            ` data-password="${escapeHtml(user.mot_de_passe || '')}"` +
+                            ` data-role="${escapeHtml(user.role)}"` +
+                            ` title="Modifier l'utilisateur">✏️</button>` +
+                        `<button type="button" class="maintenance-action-btn admin-delete-user-btn"` +
+                            ` data-identifiant="${escapeHtml(user.identifiant)}"` +
+                            ` title="Supprimer">🗑️</button>` +
+                    `</td>`;
+                adminUsersTableBody.appendChild(tr);
+            });
+
+            attachAdminUserActions();
+        }
+
+        function resetAdminUserForm() {
+            if (!adminUserForm || !adminUserSubmitBtn || !adminOriginalIdentifiantInput || !adminRoleInput) return;
+            adminUserForm.reset();
+            adminUserForm.action = '/create_user';
+            adminOriginalIdentifiantInput.value = '';
+            adminRoleInput.selectedIndex = 0;
+            adminUserSubmitBtn.textContent = 'Validation';
+            if (adminUserCancelBtn) {
+                adminUserCancelBtn.style.display = 'none';
+            }
+        }
+
+        function attachAdminUserActions() {
+            document.querySelectorAll('.admin-edit-role-btn').forEach(button => {
+                button.onclick = function() {
+                    if (!adminUserForm || !adminOriginalIdentifiantInput || !adminNomInput || !adminPrenomInput || !adminIdentifiantInput || !adminPasswordInput || !adminRoleInput || !adminUserSubmitBtn) {
+                        return;
+                    }
+
+                    adminUserForm.action = '/update_user';
+                    adminOriginalIdentifiantInput.value = this.dataset.identifiant || '';
+                    adminNomInput.value = this.dataset.nom || '';
+                    adminPrenomInput.value = this.dataset.prenom || '';
+                    adminIdentifiantInput.value = this.dataset.identifiant || '';
+                    adminPasswordInput.value = this.dataset.password || '';
+                    adminRoleInput.value = this.dataset.role || 'Operat';
+                    adminUserSubmitBtn.textContent = 'Mettre à jour';
+                    if (adminUserCancelBtn) {
+                        adminUserCancelBtn.style.display = 'inline-block';
+                    }
+                    if (adminUserMessage) {
+                        adminUserMessage.textContent = 'Modification de l\'utilisateur en cours.';
+                        adminUserMessage.style.color = '#1f2937';
+                    }
+                };
+            });
+
+            document.querySelectorAll('.admin-delete-user-btn').forEach(button => {
+                button.onclick = function() {
+                    const identifiant = this.dataset.identifiant;
+                    if (!identifiant) return;
+                    if (!confirm(`Confirmer la suppression de l'utilisateur ${identifiant} ?`)) return;
+
+                    const formData = new FormData();
+                    formData.append('identifiant', identifiant);
+
+                    fetch('/delete_user', { method: 'POST', body: formData })
+                        .then(async r => {
+                            const data = await r.json();
+                            if (!r.ok) throw new Error(data.message || 'Erreur lors de la suppression.');
+                            return data;
+                        })
+                        .then(data => {
+                            renderAdminUsers(data.users || []);
+                            if (adminUserMessage) {
+                                adminUserMessage.textContent = data.message || 'Utilisateur supprimé avec succès.';
+                                adminUserMessage.style.color = 'green';
+                            }
+                        })
+                        .catch(error => {
+                            if (adminUserMessage) {
+                                adminUserMessage.textContent = error.message || 'Erreur de connexion au serveur.';
+                                adminUserMessage.style.color = 'red';
+                            }
+                        });
+                };
+            });
+        }
+
+        function refreshMaintenanceTable() {
+            fetch('/get_interventions')
+                .then(r => r.json())
+                .then(data => {
+                    if (!data.success) return;
+                    const tbody = document.getElementById('maintenanceTableBody');
+                    if (!tbody) return;
+                    const maintenanceContent = tbody.closest('.accordion-content');
+
+                    tbody.innerHTML = '';
+                    data.interventions.forEach(inter => {
+                        const tr = document.createElement('tr');
+                        tr.innerHTML =
+                            `<td>${escapeHtml(inter.horodatage)}</td>` +
+                            `<td>${escapeHtml(inter.nom)}</td>` +
+                            `<td>` +
+                                `<button type="button" class="maintenance-action-btn edit-maintenance-btn"` +
+                                    ` data-id="${inter.id_inter}"` +
+                                    ` data-date="${escapeHtml(inter.horodatage)}"` +
+                                    ` data-commentaire="${escapeHtml(inter.nom)}"` +
+                                    ` title="Modifier">✏️</button>` +
+                                `<button type="button" class="maintenance-action-btn delete-maintenance-btn"` +
+                                    ` data-id="${inter.id_inter}"` +
+                                    ` title="Supprimer">🗑️</button>` +
+                            `</td>`;
+                        tbody.appendChild(tr);
+                    });
+
+                    attachMaintenanceActions();
+
+                    // Recalcule la hauteur de l'accordéon pour qu'il s'ajuste
+                    if (maintenanceContent && maintenanceContent.style.maxHeight) {
+                        maintenanceContent.style.maxHeight = maintenanceContent.scrollHeight + 'px';
+                    }
+
+                    if (maintenanceModal) maintenanceModal.style.display = 'none';
+                })
+                .catch(err => alert(err.message || 'Erreur de rafraîchissement.'));
+        }
+
+        function attachMaintenanceActions() {
+            document.querySelectorAll('.edit-maintenance-btn').forEach(button => {
+                button.onclick = function() {
+                    if (!idInput || !dateInput || !commentaireInput || !maintenanceForm || !modalTitle || !saveMaintenanceBtn) return;
+                    idInput.value = this.dataset.id || '';
+                    dateInput.value = this.dataset.date || '';
+                    commentaireInput.value = this.dataset.commentaire || '';
+                    maintenanceForm.action = '/modifier_maintenance';
+                    modalTitle.textContent = 'Modifier une maintenance';
+                    saveMaintenanceBtn.textContent = 'Mettre à jour';
+                    maintenanceModal.style.display = 'flex';
+                };
+            });
+
+            document.querySelectorAll('.delete-maintenance-btn').forEach(button => {
+                button.onclick = function() {
+                    const idInter = this.dataset.id;
+                    if (!idInter) return;
+                    if (!confirm('Confirmer la suppression de cette opération planifiée ?')) return;
+
+                    const formData = new FormData();
+                    formData.append('id_inter', idInter);
+
+                    fetch('/supprimer_maintenance', { method: 'POST', body: formData })
+                        .then(async r => {
+                            const data = await r.json();
+                            if (!r.ok) throw new Error(data.message || 'Erreur lors de la suppression.');
+                            return data;
+                        })
+                        .then(data => {
+                            if (data.success) {
+                                refreshMaintenanceTable();
+                            } else {
+                                alert(data.message || 'Erreur lors de la suppression.');
+                            }
+                        })
+                        .catch(error => alert(error.message || 'Erreur de connexion au serveur.'));
+                };
+            });
+        }
+
+        if (openModalBtn && closeModalBtn && maintenanceModal && maintenanceForm && dateInput && commentaireInput && idInput && saveMaintenanceBtn && modalTitle) {
+            openModalBtn.onclick = function() {
+                idInput.value = '';
+                maintenanceForm.action = '/planifier_maintenance';
+                modalTitle.textContent = 'Planifier une maintenance';
+                saveMaintenanceBtn.textContent = 'Enregistrer';
+                dateInput.value = '';
+                commentaireInput.value = '';
+                maintenanceModal.style.display = 'flex';
+            };
+
+            closeModalBtn.onclick = function() {
+                maintenanceModal.style.display = 'none';
+            };
+
+            attachMaintenanceActions();
+
+            maintenanceForm.onsubmit = function(e) {
+                e.preventDefault();
+                const formData = new FormData(this);
+                fetch(this.action, { method: 'POST', body: formData })
+                    .then(async r => {
+                        const data = await r.json();
+                        if (!r.ok) throw new Error(data.message || "Erreur lors de l'enregistrement.");
+                        return data;
+                    })
+                    .then(data => {
+                        if (data.success) {
+                            refreshMaintenanceTable();
+                        } else {
+                            alert(data.message || "Erreur lors de l'enregistrement.");
+                        }
+                    })
+                    .catch(error => alert(error.message || 'Erreur de connexion au serveur.'));
+            };
+        }
+
+        if (adminUserForm && adminUsersTableBody && adminUserMessage) {
+            attachAdminUserActions();
+
+            if (adminUserCancelBtn) {
+                adminUserCancelBtn.onclick = function() {
+                    resetAdminUserForm();
+                    adminUserMessage.textContent = '';
+                    adminUserMessage.style.color = '';
+                };
+            }
+
+            adminUserForm.onsubmit = function(e) {
+                e.preventDefault();
+                adminUserMessage.textContent = '';
+                adminUserMessage.style.color = '';
+
+                const formData = new FormData(this);
+
+                fetch(this.action, { method: 'POST', body: formData })
+                    .then(async r => {
+                        const data = await r.json();
+                        if (!r.ok) throw new Error(data.message || 'Erreur lors de la création de l\'utilisateur.');
+                        return data;
+                    })
+                    .then(data => {
+                        if (!data.success) {
+                            throw new Error(data.message || 'Erreur lors de la création de l\'utilisateur.');
+                        }
+
+                        renderAdminUsers(data.users || []);
+                        adminUserMessage.textContent = data.message || 'Utilisateur créé avec succès !';
+                        adminUserMessage.style.color = 'green';
+                        resetAdminUserForm();
+
+                        const adminContent = adminUserForm.closest('.accordion-content');
+                        if (adminContent && adminContent.style.maxHeight) {
+                            adminContent.style.maxHeight = adminContent.scrollHeight + 'px';
+                        }
+                    })
+                    .catch(error => {
+                        adminUserMessage.textContent = error.message || 'Erreur de connexion au serveur.';
+                        adminUserMessage.style.color = 'red';
+                    });
+            };
+        }
+    </script>
+
+</body>
+</html>
