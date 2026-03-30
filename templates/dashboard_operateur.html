@@ -14,22 +14,23 @@
             margin-bottom: 24px;
         }
 
-        #maintenanceTable {
-          width: 100%;
-          border-collapse: separate;
-          border-spacing: 30px 10px; /* espace horizontal et vertical entre les cellules */
-        }
-        #maintenanceTable th, #maintenanceTable td {
-          padding: 12px 24px;
-          text-align: left;
-          font-size: 1.1em;
-        }
-        #maintenanceTable th {
-          background: #e8f6ef;
-        }
-        #maintenanceTable tr:not(:first-child) {
-          background: #f9f9f9;
-        }
+                #maintenanceTable {
+                    width: 100%;
+                    border-collapse: separate;
+                    border-spacing: 30px 10px;
+                }
+                #maintenanceTable th, #maintenanceTable td {
+                    padding: 12px 24px;
+                    text-align: left;
+                    font-size: 1.1em;
+                }
+                #maintenanceTable th {
+                    background: #e8f6ef;
+                }
+                #maintenanceTable tr:not(:first-child) {
+                    background: #f9f9f9;
+                }
+
         </style>
 </head>
 <body>
@@ -50,7 +51,7 @@
 
 <div class="container">
 
-    {% set is_responsable = role == "Respo" %}
+    {% set is_responsable = session.get('role') == 'Respo' %}
 
     <div class="accordion">
 
@@ -61,9 +62,9 @@
                 <p>Contenu historique...</p>
             </div>
         </div>
-    
+
+        <!-- Consommation (caché si non responsable) -->
         {% if is_responsable %}
-        <!-- Consommation -->
         <div class="accordion-item">
             <button class="accordion-header">Suivi des consommations électriques</button>
             <div class="accordion-content">
@@ -73,16 +74,28 @@
                 </div>
             </div>
         </div>
-    
-        <!-- Maintenance -->
+        {% else %}
+        <div class="accordion-item" hidden>
+            <button class="accordion-header">Suivi des consommations électriques</button>
+            <div class="accordion-content">
+                <div class="charts">
+                    <div class="chart">Graphique 1</div>
+                    <div class="chart">Graphique 2</div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Maintenance (caché si non responsable) -->
+        {% if is_responsable %}
         <div class="accordion-item">
             <button class="accordion-header">Opérations de maintenance planifiées</button>
             <div class="accordion-content">
                 <div class="maintenance">
                     <table id="maintenanceTable">
                         <tr>
-                        <th>Date</th>
-                        <th>Commentaire</th>
+                            <th>Date</th>
+                            <th>Commentaire</th>
                         </tr>
 
                         {% for intervention in interventions %}
@@ -96,9 +109,47 @@
                 </div>
             </div>
         </div>
+        {% else %}
+        <div class="accordion-item" hidden>
+            <button class="accordion-header">Opérations de maintenance planifiées</button>
+            <div class="accordion-content">
+                <div class="maintenance">
+                    <table id="maintenanceTable">
+                        <tr>
+                            <th>Date</th>
+                            <th>Commentaire</th>
+                        </tr>
 
-        <!-- Modal -->
+                        {% for intervention in interventions %}
+                        <tr>
+                            <td>{{ intervention.horodatage }}</td>
+                            <td>{{ intervention.nom }}</td>
+                        </tr>
+                        {% endfor %}
+                    </table>
+                    <button id="openModalBtn">BP Planifier</button>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Modal (cachée si non responsable) -->
+        {% if is_responsable %}
         <div id="maintenanceModal" style="display:none; position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.5); align-items:center; justify-content:center;">
+            <div style="background:rgb(202, 198, 198); padding:20px; border-radius:8px; min-width:300px; position:relative;">
+            <h3>Planifier une maintenance</h3>
+            <form id="maintenanceForm" method="post" action="/planifier_maintenance">
+                <label for="date_maintenance">Date :</label>
+                <input type="date" id="date_maintenance" name="date_maintenance" required><br><br>
+                <label for="commentaire">Commentaire :</label>
+                <input type="text" id="commentaire" name="commentaire" required><br><br>
+                <button type="submit">Enregistrer</button>
+                <button type="button" id="closeModalBtn" style="margin-left:10px;">Annuler</button>
+            </form>
+            </div>
+        </div>
+        {% else %}
+        <div id="maintenanceModal" hidden>
             <div style="background:rgb(202, 198, 198); padding:20px; border-radius:8px; min-width:300px; position:relative;">
             <h3>Planifier une maintenance</h3>
             <form id="maintenanceForm" method="post" action="/planifier_maintenance">
@@ -188,5 +239,6 @@
             };
         }
     </script>
+
 </body>
 </html>

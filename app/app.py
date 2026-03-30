@@ -89,10 +89,10 @@ def recuperer_interventions():
  
 # On définit les identifiants pour les deux types d'utilisateurs
 USERS = {
-    "Operat": "Operator",
-    "Respo": "Responsable",
-    "Integ": "Integrator",
-    "Admin": "Administrator"
+    "Operat": "operateur",
+    "Respo": "responsable",
+    "Integ": "integrateur",
+    "Admin": "administrateur"
 }
  
 @app.route("/", methods=["GET", "POST"])
@@ -106,9 +106,10 @@ def login():
         if user in USERS and USERS[user] == password:
             
             session["logged_in"] = True
-            # 2. Redirection selon le rôle (on compare avec les clés du dictionnaire)
+            session["role"] = user
+            # 2. Redirection selon le rôle
             if user == "Respo":
-                return redirect(url_for("dashboard_resp"))
+                return redirect(url_for("dashboard_op"))
             
             elif user == "Integ":
                 return redirect(url_for("dashboard_integ"))
@@ -126,7 +127,7 @@ def dashboard_op():
     if not session.get("logged_in"):
         return redirect(url_for("login"))
     interventions = recuperer_interventions()
-    return render_template("dashboard.html", interventions=interventions)
+    return render_template("dashboard_operateur.html", interventions=interventions, role=session.get("role"))
  
  
 @app.route("/planifier_maintenance", methods=["POST"])
