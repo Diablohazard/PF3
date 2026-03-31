@@ -76,6 +76,108 @@
                     padding: 0;
                 }
 
+                .cpu-history-grid {
+                    display: grid;
+                    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+                    gap: 14px;
+                    margin-top: 12px;
+                }
+
+                .metric-card {
+                    background: #ffffff;
+                    border: 1px solid #e8ecef;
+                    border-radius: 12px;
+                    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+                    padding: 14px;
+                }
+
+                .metric-label {
+                    margin: 0 0 8px 0;
+                    font-size: 0.95rem;
+                    color: #4b5563;
+                    font-weight: 600;
+                }
+
+                .metric-value {
+                    font-size: 1.85rem;
+                    line-height: 1;
+                    font-weight: 700;
+                    color: #1f2937;
+                    margin-bottom: 8px;
+                }
+
+                .metric-bar {
+                    width: 100%;
+                    height: 10px;
+                    background: #eef2f7;
+                    border-radius: 999px;
+                    overflow: hidden;
+                }
+
+                .metric-bar-fill {
+                    height: 100%;
+                    width: 0%;
+                    transition: width 0.5s ease, background-color 0.5s ease;
+                }
+
+                #cpu-load-bar {
+                    background: linear-gradient(90deg, #2a9d8f, #4caf50);
+                }
+
+                #ram-usage-bar {
+                    background: linear-gradient(90deg, #1d7fd0, #55a8e9);
+                }
+
+                .thermo-wrap {
+                    display: flex;
+                    align-items: center;
+                    gap: 14px;
+                }
+
+                .thermometer {
+                    width: 34px;
+                    height: 118px;
+                    border: 3px solid #d4d9df;
+                    border-radius: 20px;
+                    background: #f3f6fa;
+                    position: relative;
+                    overflow: hidden;
+                }
+
+                .thermometer-fill {
+                    position: absolute;
+                    left: 0;
+                    bottom: 0;
+                    width: 100%;
+                    height: 0%;
+                    transition: height 0.7s ease, background-color 0.5s ease;
+                    background: linear-gradient(180deg, #ffca3a, #f77f00);
+                }
+
+                .thermometer-bulb {
+                    width: 18px;
+                    height: 18px;
+                    border-radius: 50%;
+                    background: #f77f00;
+                    position: absolute;
+                    bottom: -10px;
+                    left: 50%;
+                    transform: translateX(-50%);
+                    border: 2px solid #d4d9df;
+                }
+
+                .temperature-danger {
+                    color: #dc3545 !important;
+                }
+
+                .temperature-warning {
+                    color: #ff8c00 !important;
+                }
+
+                .temperature-normal {
+                    color: #28a745 !important;
+                }
+
         </style>
 </head>
 <body>
@@ -196,39 +298,33 @@
         <div class="accordion-item" {% if not can_view_integrateur_sections %}hidden{% endif %}>
             <button class="accordion-header">Historique de charge</button>
             <div class="accordion-content">
-                <div style="display: flex; gap: 10px; margin-top: 10px; align-items: flex-start;">
-                    <div class="accordion-item" style="flex: 1;">
-                        <button class="accordion-header" style="min-height: 120px; width: 100%; display: flex; align-items: center; justify-content: center; text-align: center;">
-                            Charge CPU
-                        </button>
-                        <div class="accordion-content">
-                            <div style="padding: 10px; text-align: center;">
-                                <p>Utilisation : <span id="cpu-load">-- %</span></p>
-                                <div style="width: 100%; background: #eee; height: 10px; border-radius: 5px;">
-                                    <div style="width: 45%; height: 100%; background: #4caf50; border-radius: 5px;"></div>
-                                </div>
-                            </div>
+                <div class="cpu-history-grid">
+                    <div class="metric-card">
+                        <p class="metric-label">Charge CPU</p>
+                        <div id="cpu-load" class="metric-value">-- %</div>
+                        <div class="metric-bar">
+                            <div id="cpu-load-bar" class="metric-bar-fill"></div>
                         </div>
                     </div>
 
-                    <div class="accordion-item" style="flex: 1;">
-                        <button class="accordion-header" style="min-height: 120px; width: 100%; display: flex; align-items: center; justify-content: center; text-align: center;">
-                            RAM CPU
-                        </button>
-                        <div class="accordion-content">
-                            <div style="padding: 10px; text-align: center;">
-                                <span id="ram-usage" style="font-size: 1.2rem; font-weight: bold;">8 / 16 Go</span>
-                            </div>
+                    <div class="metric-card">
+                        <p class="metric-label">RAM CPU</p>
+                        <div id="ram-usage" class="metric-value">-- %</div>
+                        <div class="metric-bar">
+                            <div id="ram-usage-bar" class="metric-bar-fill"></div>
                         </div>
                     </div>
 
-                    <div class="accordion-item" style="flex: 1;">
-                        <button class="accordion-header" style="min-height: 120px; width: 100%; display: flex; align-items: center; justify-content: center; text-align: center;">
-                            Temp. CPU
-                        </button>
-                        <div class="accordion-content">
-                            <div style="padding: 10px; text-align: center;">
-                                <span id="cpu-temp" style="font-size: 1.2rem; font-weight: bold; color: #e67e22;">-- °C</span>
+                    <div class="metric-card">
+                        <p class="metric-label">Temp. CPU</p>
+                        <div class="thermo-wrap">
+                            <div class="thermometer" aria-hidden="true">
+                                <div id="thermometer-fill" class="thermometer-fill"></div>
+                                <div id="thermometer-bulb" class="thermometer-bulb"></div>
+                            </div>
+                            <div>
+                                <div id="cpu-temp" class="metric-value">-- °C</div>
+                                <div id="cpu-temp-state" style="font-size: 0.9rem; color: #6b7280;">En attente de mesure</div>
                             </div>
                         </div>
                     </div>
@@ -739,58 +835,72 @@
         setInterval(refreshAutomateStatus, 60000);
     </script>
 
-    <style>
-        .temperature-animate {
-            transition: color 0.5s ease, transform 0.5s ease;
-        }
-
-        .temperature-danger {
-            color: #dc3545 !important;
-        }
-
-        .temperature-warning {
-            color: #ff8c00 !important;
-        }
-
-        .temperature-normal {
-            color: #28a745 !important;
-        }
-    </style>
-
     <script>
         function refreshCpuTemperature() {
             fetch('/api/cpu-temperature')
                 .then(response => response.json())
                 .then(data => {
-                    console.log('CPU Temperature data:', data);
                     if (data.ok && data.temperature !== undefined) {
                         const tempElement = document.getElementById('cpu-temp');
+                        const tempStateElement = document.getElementById('cpu-temp-state');
+                        const thermoFill = document.getElementById('thermometer-fill');
+                        const thermoBulb = document.getElementById('thermometer-bulb');
+                        const cpuLoadElement = document.getElementById('cpu-load');
+                        const ramUsageElement = document.getElementById('ram-usage');
+                        const cpuLoadBar = document.getElementById('cpu-load-bar');
+                        const ramUsageBar = document.getElementById('ram-usage-bar');
+
                         if (tempElement) {
-                            const newTemp = parseFloat(data.temperature);
-                            
-                            // Mettre à jour la température
+                            const newTemp = parseFloat(data.temperature) || 0;
                             tempElement.textContent = newTemp.toFixed(2) + ' °C';
-                            
-                            // Changer la couleur selon la température
+
                             tempElement.classList.remove('temperature-danger', 'temperature-warning', 'temperature-normal');
+
+                            let tempColor = '#28a745';
+                            let tempStatus = 'Normal';
+
                             if (newTemp > 85) {
                                 tempElement.classList.add('temperature-danger');
+                                tempColor = '#dc3545';
+                                tempStatus = 'Alerte haute';
                             } else if (newTemp > 70) {
                                 tempElement.classList.add('temperature-warning');
+                                tempColor = '#ff8c00';
+                                tempStatus = 'Surveillance';
                             } else {
                                 tempElement.classList.add('temperature-normal');
+                                tempColor = '#28a745';
+                                tempStatus = 'Normal';
                             }
-                            
-                            // Mettre à jour la barre de charge CPU aussi
-                            const cpuLoadElement = document.getElementById('cpu-load');
+
+                            if (tempStateElement) {
+                                tempStateElement.textContent = tempStatus;
+                            }
+
+                            if (thermoFill) {
+                                const tempPercent = Math.max(0, Math.min(100, newTemp));
+                                thermoFill.style.height = tempPercent + '%';
+                                thermoFill.style.background = 'linear-gradient(180deg, #ffd166, ' + tempColor + ')';
+                            }
+
+                            if (thermoBulb) {
+                                thermoBulb.style.background = tempColor;
+                            }
+
                             if (cpuLoadElement && data.charge !== undefined) {
-                                cpuLoadElement.textContent = parseFloat(data.charge).toFixed(1) + ' %';
+                                const cpuLoad = Math.max(0, Math.min(100, parseFloat(data.charge) || 0));
+                                cpuLoadElement.textContent = cpuLoad.toFixed(1) + ' %';
+                                if (cpuLoadBar) {
+                                    cpuLoadBar.style.width = cpuLoad + '%';
+                                }
                             }
-                            
-                            // Mettre à jour RAM aussi
-                            const ramUsageElement = document.getElementById('ram-usage');
+
                             if (ramUsageElement && data.ram !== undefined) {
-                                ramUsageElement.textContent = parseFloat(data.ram).toFixed(1) + ' %';
+                                const ramUsage = Math.max(0, Math.min(100, parseFloat(data.ram) || 0));
+                                ramUsageElement.textContent = ramUsage.toFixed(1) + ' %';
+                                if (ramUsageBar) {
+                                    ramUsageBar.style.width = ramUsage + '%';
+                                }
                             }
                         }
                     }
