@@ -824,66 +824,95 @@ def api_automate_status():
 
 @app.route("/api/cpu-temperature")
 def api_cpu_temperature():
-    """Retourne la température CPU depuis OPC UA et persiste en base si disponible."""
-    variables = get_automate_variables_details()
-    if not variables.get("ok") or not variables.get("data"):
-        return jsonify(
-            {
-                "ok": False,
-                "error": variables.get("error", "Lecture OPC UA impossible"),
-                "error_code": variables.get("error_code"),
-            }
-        ), 502
+    """Affiche la dernière valeur de base et met à jour la base via OPC UA quand possible."""
+    opcua_error = None
+    opcua_error_code = None
+    live_data = None
 
-    data = variables["data"]
-    charge = data.get("cpu_load", 0)
-    ram = data.get("ram_usage", 0)
-    temp = data.get("temp_c", 0)
-
-    # Fallback: si MySQL est indisponible, renvoyer quand meme la valeur live OPC UA.
+    # 1) Tenter une lecture OPC UA pour enrichir la base, sans bloquer l'affichage.
     try:
-        enregistrer_temperature(charge, ram, temp)
+        variables = get_automate_variables_details()
+        if variables.get("ok") and variables.get("data"):
+            data = variables["data"]
+            charge = data.get("cpu_load", 0)
+            ram = data.get("ram_usage", 0)
+            temp = data.get("temp_c", 0)
+            live_data = {
+                "charge": charge,
+                "ram": ram,
+                "temperature": temp,
+                "horodatage": datetime.utcnow().isoformat() + "Z",
+            }
+            try:
+                enregistrer_temperature(charge, ram, temp)
+            except Exception:
+                # Si l'insertion échoue, on continue quand meme avec la lecture DB/fallback live.
+                pass
+        else:
+            opcua_error = (variables or {}).get("error", "Lecture OPC UA impossible")
+            opcua_error_code = (variables or {}).get("error_code")
+    except Exception as exc:
+        opcua_error = str(exc)
+
+    # 2) Source principale: dernière valeur en base.
+    try:
         dernier = recuperer_derniere_temperature()
         if dernier:
             return jsonify(
                 {
                     "ok": True,
                     "source": "database",
-                    "db_available": True,
                     "charge": dernier["charge"],
                     "ram": dernier["ram"],
                     "temperature": dernier["temperature"],
                     "alerte": dernier["alerte"],
                     "horodatage": dernier["horodatage"].isoformat() if dernier["horodatage"] else None,
+                    "opcua_ok": opcua_error is None,
+                    "opcua_error": opcua_error,
+                    "opcua_error_code": opcua_error_code,
                 }
             )
-    except Exception as db_error:
+    except Exception as db_exc:
+        # 3) Si la base échoue mais qu'on a une valeur live, on l'affiche quand meme.
+        if live_data is not None:
+            return jsonify(
+                {
+                    "ok": True,
+                    "source": "opcua_live",
+                    "charge": live_data["charge"],
+                    "ram": live_data["ram"],
+                    "temperature": live_data["temperature"],
+                    "alerte": None,
+                    "horodatage": live_data["horodatage"],
+                    "db_error": str(db_exc),
+                    "opcua_ok": True,
+                }
+            )
+        return jsonify({"ok": False, "error": str(db_exc)}), 500
+
+    # 4) Si la base est vide mais qu'on a une valeur live OPC UA, on l'utilise.
+    if live_data is not None:
         return jsonify(
             {
                 "ok": True,
                 "source": "opcua_live",
-                "db_available": False,
-                "db_error": str(db_error),
-                "charge": charge,
-                "ram": ram,
-                "temperature": temp,
+                "charge": live_data["charge"],
+                "ram": live_data["ram"],
+                "temperature": live_data["temperature"],
                 "alerte": None,
-                "horodatage": datetime.utcnow().isoformat() + "Z",
+                "horodatage": live_data["horodatage"],
+                "opcua_ok": True,
             }
         )
 
     return jsonify(
         {
-            "ok": True,
-            "source": "opcua_live",
-            "db_available": True,
-            "charge": charge,
-            "ram": ram,
-            "temperature": temp,
-            "alerte": None,
-            "horodatage": datetime.utcnow().isoformat() + "Z",
+            "ok": False,
+            "error": "Aucune donnée CPU disponible",
+            "opcua_error": opcua_error,
+            "opcua_error_code": opcua_error_code,
         }
-    )
+    ), 404
 
 
 @app.route("/responsable")
