@@ -17,8 +17,8 @@ def get_db_connection():
     return mysql.connector.connect(
         host=os.getenv("DB_HOST", "localhost").strip('"'),
         port=int(os.getenv("DB_PORT", "8181").strip('"')),
-        user=os.getenv("DB_USER", "root").strip('"'),
-        password=os.getenv("DB_PASSWORD", "").strip('"'),
+        user=os.getenv("DB_USER", "pf3user").strip('"'),
+        password=os.getenv("DB_PASSWORD", "pf3password").strip('"'),
         database=os.getenv("DB_NAME", os.getenv("DB_DATABASE", "pf3")).strip('"')
     )
  
