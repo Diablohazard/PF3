@@ -726,6 +726,18 @@ def get_interventions_json():
     return jsonify({"success": True, "interventions": result})
 
 
+@app.route("/api/automate-status")
+def api_automate_status():
+    automate_status = get_opcua_status_details()
+    return jsonify(
+        {
+            "ok": automate_status["ok"],
+            "error": automate_status["error"],
+            "error_code": automate_status["error_code"],
+        }
+    )
+
+
 @app.route("/responsable")
 def dashboard_resp():
     return render_template("dashboard_SB_respo.html")

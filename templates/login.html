@@ -81,5 +81,34 @@
         {% endif %}
     </div>
 
+    <script>
+        function refreshAutomateStatus() {
+            fetch('/api/automate-status')
+                .then(response => response.json())
+                .then(data => {
+                    const statusBox = document.querySelector('.automate-status');
+                    if (statusBox) {
+                        statusBox.className = 'automate-status ' + (data.ok ? 'automate-ok' : 'automate-ko');
+                        if (data.ok) {
+                            statusBox.innerHTML = '🟢 Automate Wago : En Ligne';
+                        } else {
+                            let content = '🔴 Automate Wago : Hors Ligne';
+                            if (data.error) {
+                                content += `<div class="automate-error">${data.error}</div>`;
+                            }
+                            if (data.error_code) {
+                                content += `<div class="automate-error-code">Code erreur : ${data.error_code}</div>`;
+                            }
+                            statusBox.innerHTML = content;
+                        }
+                    }
+                })
+                .catch(error => console.error('Erreur refresh automate:', error));
+        }
+
+        // Rafraîchir toutes les 60 secondes (60000 ms)
+        setInterval(refreshAutomateStatus, 60000);
+    </script>
+
 </body>
 </html>
