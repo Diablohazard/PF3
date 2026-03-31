@@ -12,4 +12,10 @@ def create_async_client(url, username="", password="", timeout=10):
 
 def fetch_server_endpoints(url, timeout=10):
     client = SyncClient(url, timeout=timeout)
-    return client.connect_and_get_server_endpoints()
+    try:
+        return client.connect_and_get_server_endpoints()
+    finally:
+        try:
+            client.disconnect()
+        except Exception:
+            pass

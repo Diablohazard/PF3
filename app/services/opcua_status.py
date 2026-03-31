@@ -1,4 +1,3 @@
-import asyncio
 import os
 import re
 
@@ -6,14 +5,14 @@ from dotenv import load_dotenv
 
 try:
     from services.opcua_requests import (
-        read_automate_variables,
-        read_node_value,
+        read_automate_variables_sync,
+        read_node_value_sync,
         server_accepts_anonymous,
     )
 except ImportError:
     from app.services.opcua_requests import (
-        read_automate_variables,
-        read_node_value,
+        read_automate_variables_sync,
+        read_node_value_sync,
         server_accepts_anonymous,
     )
 
@@ -61,9 +60,9 @@ def _get_opcua_config():
     }
 
 
-async def _check_connection_async(url, username, password, timeout):
+def _check_connection(url, username, password, timeout):
     try:
-        valeur = await read_node_value(
+        valeur = read_node_value_sync(
             url=url,
             username=username,
             password=password,
@@ -99,13 +98,11 @@ def get_opcua_status_details():
         print(error_message)
         return _build_status(False, error_message, "AnonymousNotAllowed")
 
-    return asyncio.run(
-        _check_connection_async(
-            config["url"],
-            config["username"],
-            config["password"],
-            config["timeout"],
-        )
+    return _check_connection(
+        config["url"],
+        config["username"],
+        config["password"],
+        config["timeout"],
     )
 
 
@@ -116,13 +113,11 @@ def get_opcua_status():
 def get_automate_variables_details():
     config = _get_opcua_config()
     try:
-        values = asyncio.run(
-            read_automate_variables(
-                url=config["url"],
-                username=config["username"],
-                password=config["password"],
-                timeout=config["timeout"],
-            )
+        values = read_automate_variables_sync(
+            url=config["url"],
+            username=config["username"],
+            password=config["password"],
+            timeout=config["timeout"],
         )
         return {
             "ok": True,
