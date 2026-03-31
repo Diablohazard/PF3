@@ -759,23 +759,14 @@
 
     <script>
         function refreshCpuTemperature() {
-            // Vérifier si l'utilisateur a accès aux sections intégrateur
-            const integratorSection = document.querySelector('[hidden] .accordion-item');
-            if (integratorSection && integratorSection.hasAttribute('hidden')) {
-                return;
-            }
-
             fetch('/api/cpu-temperature')
                 .then(response => response.json())
                 .then(data => {
+                    console.log('CPU Temperature data:', data);
                     if (data.ok && data.temperature !== undefined) {
                         const tempElement = document.getElementById('cpu-temp');
                         if (tempElement) {
-                            const oldTemp = parseFloat(tempElement.textContent);
                             const newTemp = parseFloat(data.temperature);
-                            
-                            // Ajouter la classe animation
-                            tempElement.classList.add('temperature-animate');
                             
                             // Mettre à jour la température
                             tempElement.textContent = newTemp.toFixed(2) + ' °C';
@@ -808,10 +799,8 @@
         }
 
         // Rafraîchir la température toutes les 60 secondes
+        refreshCpuTemperature();  // Appel immédiat au chargement
         setInterval(refreshCpuTemperature, 60000);
-        
-        // Rafraîchir immédiatement au chargement de la page
-        document.addEventListener('DOMContentLoaded', refreshCpuTemperature);
     </script>
 
 </body>
