@@ -4,8 +4,54 @@
     <meta charset="UTF-8">
     <title>Connexion</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <style>
+        .automate-status {
+            position: absolute;
+            top: 15px;
+            left: 15px;
+            padding: 8px 15px;
+            border-radius: 5px;
+            font-family: Arial, sans-serif;
+            font-weight: bold;
+            color: white;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+            z-index: 1000;
+            max-width: 420px;
+        }
+
+        .automate-ok {
+            background-color: #28a745;
+        }
+
+        .automate-ko {
+            background-color: #dc3545;
+        }
+
+        .automate-error {
+            margin-top: 6px;
+            font-size: 0.85rem;
+            font-weight: normal;
+            line-height: 1.4;
+            white-space: normal;
+            word-break: break-word;
+        }
+    </style>
 </head>
 <body class="login-body">
+
+    {% set automate_status = automate_ok|default(false) %}
+    {% set automate_error_message = automate_error|default('') %}
+
+    <div class="automate-status {% if automate_status %}automate-ok{% else %}automate-ko{% endif %}">
+        {% if automate_status %}
+            🟢 Automate Wago : En Ligne
+        {% else %}
+            🔴 Automate Wago : Hors Ligne
+            {% if automate_error_message %}
+                <div class="automate-error">{{ automate_error_message }}</div>
+            {% endif %}
+        {% endif %}
+    </div>
 
     <div class="login-container">
         <img src="{{ url_for('static', filename='images/logo.png/logo.png') }}" class="logo">
