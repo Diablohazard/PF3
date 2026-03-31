@@ -5,9 +5,17 @@ import re
 from dotenv import load_dotenv
 
 try:
-    from services.opcua_requests import read_node_value, server_accepts_anonymous
+    from services.opcua_requests import (
+        read_automate_variables,
+        read_node_value,
+        server_accepts_anonymous,
+    )
 except ImportError:
-    from app.services.opcua_requests import read_node_value, server_accepts_anonymous
+    from app.services.opcua_requests import (
+        read_automate_variables,
+        read_node_value,
+        server_accepts_anonymous,
+    )
 
 
 load_dotenv()
@@ -91,3 +99,31 @@ def get_opcua_status_details():
 
 def get_opcua_status():
     return get_opcua_status_details()["ok"]
+
+
+def get_automate_variables_details():
+    config = _get_opcua_config()
+    try:
+        values = asyncio.run(
+            read_automate_variables(
+                url=config["url"],
+                username=config["username"],
+                password=config["password"],
+                timeout=2,
+            )
+        )
+        return {
+            "ok": True,
+            "data": values,
+            "error": None,
+            "error_code": None,
+        }
+    except Exception as exc:
+        error_message = f"Erreur de lecture des variables OPC UA: {exc}"
+        print(error_message)
+        return {
+            "ok": False,
+            "data": None,
+            "error": error_message,
+            "error_code": _extract_error_code(exc),
+        }
