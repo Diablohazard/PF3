@@ -2,10 +2,12 @@ import asyncio
 import os
 import re
 
-from asyncua import Client
 from dotenv import load_dotenv
-from opcua import Client as SyncClient
-from opcua import ua
+
+try:
+    from services.opcua_requests import read_node_value, server_accepts_anonymous
+except ImportError:
+    from app.services.opcua_requests import read_node_value, server_accepts_anonymous
 
 
 load_dotenv()
@@ -43,37 +45,17 @@ def _get_opcua_config():
     }
 
 
-def _server_accepts_anonymous(url):
-    client = SyncClient(url)
-
-    try:
-        endpoints = client.connect_and_get_server_endpoints()
-    except Exception as exc:
-        error_message = f"Erreur lors de la lecture des endpoints OPC UA: {exc}"
-        print(error_message)
-        return False, error_message, _extract_error_code(exc)
-
-    for endpoint in endpoints:
-        for token in endpoint.UserIdentityTokens:
-            if token.TokenType == ua.UserTokenType.Anonymous:
-                return True, None, None
-
-    return False, None, None
-
-
 async def _check_connection_async(url, username, password):
     try:
-        client = Client(url=url, timeout=2)
-
-        if username:
-            client.set_user(username)
-            client.set_password(password)
-
-        async with client:
-            node = client.get_node(SERVER_STATUS_NODE_ID)
-            valeur = await node.read_value()
-            print(f"Etat serveur OPCUA : {valeur}")
-            return _build_status(True)
+        valeur = await read_node_value(
+            url=url,
+            username=username,
+            password=password,
+            node_id=SERVER_STATUS_NODE_ID,
+            timeout=2,
+        )
+        print(f"Etat serveur OPCUA : {valeur}")
+        return _build_status(True)
 
     except Exception as exc:
         error_message = f"Erreur de connexion Automate: {exc}"
@@ -83,10 +65,12 @@ async def _check_connection_async(url, username, password):
 
 def get_opcua_status_details():
     config = _get_opcua_config()
-    anonymous_allowed, discovery_error, discovery_error_code = _server_accepts_anonymous(config["url"])
-
-    if discovery_error:
-        return _build_status(False, discovery_error, discovery_error_code)
+    try:
+        anonymous_allowed = server_accepts_anonymous(config["url"])
+    except Exception as exc:
+        error_message = f"Erreur lors de la lecture des endpoints OPC UA: {exc}"
+        print(error_message)
+        return _build_status(False, error_message, _extract_error_code(exc))
 
     if not config["username"] and not anonymous_allowed:
         error_message = (
