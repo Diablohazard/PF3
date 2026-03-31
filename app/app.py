@@ -824,25 +824,32 @@ def api_automate_status():
 
 @app.route("/api/cpu-temperature")
 def api_cpu_temperature():
-    """Enregistre la température OPC UA et retourne les dernières données CPU"""
+    """Retourne la température CPU depuis OPC UA et persiste en base si disponible."""
+    variables = get_automate_variables_details()
+    if not variables.get("ok") or not variables.get("data"):
+        return jsonify(
+            {
+                "ok": False,
+                "error": variables.get("error", "Lecture OPC UA impossible"),
+                "error_code": variables.get("error_code"),
+            }
+        ), 502
+
+    data = variables["data"]
+    charge = data.get("cpu_load", 0)
+    ram = data.get("ram_usage", 0)
+    temp = data.get("temp_c", 0)
+
+    # Fallback: si MySQL est indisponible, renvoyer quand meme la valeur live OPC UA.
     try:
-        # Récupérer les variables OPC UA
-        variables = get_automate_variables_details()
-        
-        if variables["ok"] and variables["data"]:
-            charge = variables["data"].get("cpu_load", 0)
-            ram = variables["data"].get("ram_usage", 0)
-            temp = variables["data"].get("temp_c", 0)
-            
-            # Enregistrer les données dans la base de données
-            enregistrer_temperature(charge, ram, temp)
-        
-        # Retourner la dernière température enregistrée
+        enregistrer_temperature(charge, ram, temp)
         dernier = recuperer_derniere_temperature()
         if dernier:
             return jsonify(
                 {
                     "ok": True,
+                    "source": "database",
+                    "db_available": True,
                     "charge": dernier["charge"],
                     "ram": dernier["ram"],
                     "temperature": dernier["temperature"],
@@ -850,11 +857,33 @@ def api_cpu_temperature():
                     "horodatage": dernier["horodatage"].isoformat() if dernier["horodatage"] else None,
                 }
             )
-        else:
-            return jsonify({"ok": False, "message": "Aucune donnée CPU disponible"}), 404
-            
-    except Exception as e:
-        return jsonify({"ok": False, "error": str(e)}), 500
+    except Exception as db_error:
+        return jsonify(
+            {
+                "ok": True,
+                "source": "opcua_live",
+                "db_available": False,
+                "db_error": str(db_error),
+                "charge": charge,
+                "ram": ram,
+                "temperature": temp,
+                "alerte": None,
+                "horodatage": datetime.utcnow().isoformat() + "Z",
+            }
+        )
+
+    return jsonify(
+        {
+            "ok": True,
+            "source": "opcua_live",
+            "db_available": True,
+            "charge": charge,
+            "ram": ram,
+            "temperature": temp,
+            "alerte": None,
+            "horodatage": datetime.utcnow().isoformat() + "Z",
+        }
+    )
 
 
 @app.route("/responsable")
