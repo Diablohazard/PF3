@@ -22,6 +22,7 @@ load_dotenv()
 
 DEFAULT_OPCUA_URL = "opc.tcp://172.30.30.10:4840"
 SERVER_STATUS_NODE_ID = "i=2259"
+DEFAULT_OPCUA_TIMEOUT = 10
 
 
 def _build_status(is_online, error_message=None, error_code=None):
@@ -46,21 +47,28 @@ def _extract_error_code(exception):
 
 
 def _get_opcua_config():
+    timeout_value = os.getenv("OPCUA_TIMEOUT", str(DEFAULT_OPCUA_TIMEOUT)).strip()
+    try:
+        timeout = max(1, int(timeout_value))
+    except ValueError:
+        timeout = DEFAULT_OPCUA_TIMEOUT
+
     return {
         "url": os.getenv("OPCUA_URL", DEFAULT_OPCUA_URL).strip(),
         "username": (os.getenv("OPCUA_USERNAME") or "").strip(),
         "password": (os.getenv("OPCUA_PASSWORD") or "").strip(),
+        "timeout": timeout,
     }
 
 
-async def _check_connection_async(url, username, password):
+async def _check_connection_async(url, username, password, timeout):
     try:
         valeur = await read_node_value(
             url=url,
             username=username,
             password=password,
             node_id=SERVER_STATUS_NODE_ID,
-            timeout=2,
+            timeout=timeout,
         )
         print(f"Etat serveur OPCUA : {valeur}")
         return _build_status(True)
@@ -74,7 +82,10 @@ async def _check_connection_async(url, username, password):
 def get_opcua_status_details():
     config = _get_opcua_config()
     try:
-        anonymous_allowed = server_accepts_anonymous(config["url"])
+        anonymous_allowed = server_accepts_anonymous(
+            config["url"],
+            timeout=config["timeout"],
+        )
     except Exception as exc:
         error_message = f"Erreur lors de la lecture des endpoints OPC UA: {exc}"
         print(error_message)
@@ -93,6 +104,7 @@ def get_opcua_status_details():
             config["url"],
             config["username"],
             config["password"],
+            config["timeout"],
         )
     )
 
@@ -109,7 +121,7 @@ def get_automate_variables_details():
                 url=config["url"],
                 username=config["username"],
                 password=config["password"],
-                timeout=2,
+                timeout=config["timeout"],
             )
         )
         return {

@@ -21,8 +21,8 @@ AUTOMATE_NODE_IDS = {
 }
 
 
-def server_accepts_anonymous(url):
-    endpoints = fetch_server_endpoints(url)
+def server_accepts_anonymous(url, timeout=10):
+    endpoints = fetch_server_endpoints(url, timeout=timeout)
 
     for endpoint in endpoints:
         for token in endpoint.UserIdentityTokens:
@@ -32,7 +32,7 @@ def server_accepts_anonymous(url):
     return False
 
 
-async def read_node_value(url, username, password, node_id, timeout=2):
+async def read_node_value(url, username, password, node_id, timeout=10):
     client = create_async_client(
         url=url,
         username=username,
@@ -45,7 +45,7 @@ async def read_node_value(url, username, password, node_id, timeout=2):
         return await node.read_value()
 
 
-async def read_named_nodes(url, username, password, node_ids, timeout=2):
+async def read_named_nodes(url, username, password, node_ids, timeout=10):
     client = create_async_client(
         url=url,
         username=username,
@@ -62,7 +62,7 @@ async def read_named_nodes(url, username, password, node_ids, timeout=2):
     return values
 
 
-async def read_automate_variables(url, username, password, timeout=2):
+async def read_automate_variables(url, username, password, timeout=10):
     return await read_named_nodes(
         url=url,
         username=username,
