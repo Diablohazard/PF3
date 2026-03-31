@@ -35,12 +35,20 @@
             white-space: normal;
             word-break: break-word;
         }
+
+        .automate-error-code {
+            margin-top: 4px;
+            font-size: 0.8rem;
+            font-weight: normal;
+            opacity: 0.95;
+        }
     </style>
 </head>
 <body class="login-body">
 
     {% set automate_status = automate_ok|default(false) %}
     {% set automate_error_message = automate_error|default('') %}
+    {% set automate_error_code_value = automate_error_code|default('') %}
 
     <div class="automate-status {% if automate_status %}automate-ok{% else %}automate-ko{% endif %}">
         {% if automate_status %}
@@ -49,6 +57,9 @@
             🔴 Automate Wago : Hors Ligne
             {% if automate_error_message %}
                 <div class="automate-error">{{ automate_error_message }}</div>
+            {% endif %}
+            {% if automate_error_code_value %}
+                <div class="automate-error-code">Code erreur : {{ automate_error_code_value }}</div>
             {% endif %}
         {% endif %}
     </div>

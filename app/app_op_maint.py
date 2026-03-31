@@ -60,4 +60,5 @@ def login():
         'login.html',
         automate_ok=automate_status['ok'],
         automate_error=automate_status['error'],
+        automate_error_code=automate_status['error_code'],
     )

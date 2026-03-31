@@ -1,5 +1,6 @@
 import asyncio
 import os
+import re
 
 from asyncua import Client
 from dotenv import load_dotenv
@@ -13,11 +14,25 @@ DEFAULT_OPCUA_URL = "opc.tcp://172.30.30.10:4840"
 SERVER_STATUS_NODE_ID = "i=2259"
 
 
-def _build_status(is_online, error_message=None):
+def _build_status(is_online, error_message=None, error_code=None):
     return {
         "ok": is_online,
         "error": error_message,
+        "error_code": error_code,
     }
+
+
+def _extract_error_code(exception):
+    exception_text = str(exception)
+    match = re.search(r"\(([A-Za-z][A-Za-z0-9_]+)\)", exception_text)
+    if match:
+        return match.group(1)
+
+    match = re.search(r"\b(Bad[A-Za-z0-9_]+)\b", exception_text)
+    if match:
+        return match.group(1)
+
+    return type(exception).__name__
 
 
 def _get_opcua_config():
@@ -36,14 +51,14 @@ def _server_accepts_anonymous(url):
     except Exception as exc:
         error_message = f"Erreur lors de la lecture des endpoints OPC UA: {exc}"
         print(error_message)
-        return False, error_message
+        return False, error_message, _extract_error_code(exc)
 
     for endpoint in endpoints:
         for token in endpoint.UserIdentityTokens:
             if token.TokenType == ua.UserTokenType.Anonymous:
-                return True, None
+                return True, None, None
 
-    return False, None
+    return False, None, None
 
 
 async def _check_connection_async(url, username, password):
@@ -63,15 +78,15 @@ async def _check_connection_async(url, username, password):
     except Exception as exc:
         error_message = f"Erreur de connexion Automate: {exc}"
         print(error_message)
-        return _build_status(False, error_message)
+        return _build_status(False, error_message, _extract_error_code(exc))
 
 
 def get_opcua_status_details():
     config = _get_opcua_config()
-    anonymous_allowed, discovery_error = _server_accepts_anonymous(config["url"])
+    anonymous_allowed, discovery_error, discovery_error_code = _server_accepts_anonymous(config["url"])
 
     if discovery_error:
-        return _build_status(False, discovery_error)
+        return _build_status(False, discovery_error, discovery_error_code)
 
     if not config["username"] and not anonymous_allowed:
         error_message = (
@@ -79,7 +94,7 @@ def get_opcua_status_details():
             "Renseignez OPCUA_USERNAME et OPCUA_PASSWORD dans l'environnement."
         )
         print(error_message)
-        return _build_status(False, error_message)
+        return _build_status(False, error_message, "AnonymousNotAllowed")
 
     return asyncio.run(
         _check_connection_async(
