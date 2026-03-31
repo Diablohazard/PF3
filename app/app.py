@@ -4,6 +4,7 @@ from datetime import datetime
 import mysql.connector
 from dotenv import load_dotenv
 from flask import Flask, render_template, request, redirect, url_for, jsonify, session
+from services.opcua_status import get_opcua_status_details
  
 load_dotenv()
  
@@ -18,7 +19,7 @@ def get_db_connection():
         port=int(os.getenv("DB_PORT", "8181").strip('"')),
         user=os.getenv("DB_USER", "root").strip('"'),
         password=os.getenv("DB_PASSWORD", "").strip('"'),
-        database=os.getenv("DB_NAME", os.getenv("DB_DATABASE", "PF3")).strip('"')
+        database=os.getenv("DB_NAME", os.getenv("DB_DATABASE", "pf3")).strip('"')
     )
  
  
@@ -603,7 +604,15 @@ def login():
         else:
             error = "Identifiants incorrects"
  
-    return render_template("login.html", error=error)
+    # Vérifier l'état de la connexion OPC UA avec l'automate
+    automate_status = get_opcua_status_details()
+    return render_template(
+        "login.html",
+        error=error,
+        automate_ok=automate_status["ok"],
+        automate_error=automate_status["error"],
+        automate_error_code=automate_status["error_code"],
+    )
  
 @app.route("/dashboard")
 def dashboard_op():
