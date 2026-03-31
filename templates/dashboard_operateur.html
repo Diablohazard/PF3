@@ -5,6 +5,44 @@
     <title>Dashboard</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     <style>
+        .automate-status {
+            position: absolute;
+            top: 15px;
+            left: 15px;
+            padding: 8px 15px;
+            border-radius: 5px;
+            font-family: Arial, sans-serif;
+            font-weight: bold;
+            color: white;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+            z-index: 1000;
+            max-width: 420px;
+        }
+
+        .automate-ok {
+            background-color: #28a745;
+        }
+
+        .automate-ko {
+            background-color: #dc3545;
+        }
+
+        .automate-error {
+            margin-top: 6px;
+            font-size: 0.85rem;
+            font-weight: normal;
+            line-height: 1.4;
+            white-space: normal;
+            word-break: break-word;
+        }
+
+        .automate-error-code {
+            margin-top: 4px;
+            font-size: 0.8rem;
+            font-weight: normal;
+            opacity: 0.95;
+        }
+
         .accordion {
             margin-bottom: 24px; /* espace entre chaque feuillet */
         }
@@ -43,6 +81,24 @@
         </style>
 </head>
 <body>
+
+{% set automate_status = automate_ok|default(false) %}
+{% set automate_error_message = automate_error|default('') %}
+{% set automate_error_code_value = automate_error_code|default('') %}
+
+<div class="automate-status {% if automate_status %}automate-ok{% else %}automate-ko{% endif %}">
+    {% if automate_status %}
+        🟢 Automate Wago : En Ligne
+    {% else %}
+        🔴 Automate Wago : Hors Ligne
+        {% if automate_error_message %}
+            <div class="automate-error">{{ automate_error_message }}</div>
+        {% endif %}
+        {% if automate_error_code_value %}
+            <div class="automate-error-code">Code erreur : {{ automate_error_code_value }}</div>
+        {% endif %}
+    {% endif %}
+</div>
 
 <header style="background: #cffbcd; color: rgb(0, 0, 0); display: flex; align-items: center; justify-content: space-between; padding: 10px;">
     <div style="flex: 1; text-align: left;">

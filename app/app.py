@@ -618,6 +618,7 @@ def login():
 def dashboard_op():
     if not session.get("logged_in"):
         return redirect(url_for("login"))
+    automate_status = get_opcua_status_details()
     interventions = recuperer_interventions()
     return render_template(
         "dashboard_operateur.html",
@@ -625,6 +626,9 @@ def dashboard_op():
         role=session.get("role"),
         registered_users=fetch_registered_users(),
         available_roles=AVAILABLE_ROLES,
+        automate_ok=automate_status["ok"],
+        automate_error=automate_status["error"],
+        automate_error_code=automate_status["error_code"],
     )
  
  
