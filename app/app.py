@@ -4,7 +4,7 @@ from datetime import datetime
 import mysql.connector
 from dotenv import load_dotenv
 from flask import Flask, render_template, request, redirect, url_for, jsonify, session
-from services.opcua_status import get_opcua_status_details
+from services.opcua_status import get_opcua_status_details, get_automate_variables_details
  
 load_dotenv()
  
@@ -127,6 +127,90 @@ def supprimer_intervention(id_inter):
 
 def can_manage_maintenance():
     return session.get("logged_in") and session.get("role") in ("Respo", "Integ", "Admin")
+
+
+def get_cpu_data_table_name(cursor):
+    cursor.execute(
+        """
+        SELECT TABLE_NAME
+        FROM information_schema.TABLES
+        WHERE TABLE_SCHEMA = DATABASE()
+          AND TABLE_NAME IN ('donnees_cpu', 'Donnees_cpu')
+        ORDER BY CASE WHEN TABLE_NAME = 'donnees_cpu' THEN 0 ELSE 1 END
+        LIMIT 1
+        """
+    )
+    row = cursor.fetchone()
+    return row[0] if row else "donnees_cpu"
+
+
+def ensure_cpu_data_table(cursor, table_name):
+    cursor.execute(
+        f"""
+        CREATE TABLE IF NOT EXISTS `{table_name}` (
+            id_cpu INT AUTO_INCREMENT PRIMARY KEY,
+            charge FLOAT NOT NULL,
+            ram FLOAT NOT NULL,
+            temperature FLOAT NOT NULL,
+            alerte VARCHAR(50),
+            id_role INT,
+            horodatage TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+        """
+    )
+
+
+def enregistrer_temperature(charge, ram, temperature, alerte=None):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    try:
+        table_name = get_cpu_data_table_name(cursor)
+        ensure_cpu_data_table(cursor, table_name)
+        sql = f"INSERT INTO `{table_name}` (charge, ram, temperature, alerte) VALUES (%s, %s, %s, %s)"
+        cursor.execute(sql, (charge, ram, temperature, alerte))
+        conn.commit()
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def recuperer_derniere_temperature():
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    table_cursor = conn.cursor()
+
+    try:
+        table_name = get_cpu_data_table_name(table_cursor)
+        ensure_cpu_data_table(table_cursor, table_name)
+        cursor.execute(
+            f"SELECT charge, ram, temperature, alerte, horodatage FROM `{table_name}` ORDER BY horodatage DESC LIMIT 1"
+        )
+        return cursor.fetchone()
+    finally:
+        table_cursor.close()
+        cursor.close()
+        conn.close()
+
+
+def recuperer_historique_temperature(limit=60):
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    table_cursor = conn.cursor()
+
+    try:
+        table_name = get_cpu_data_table_name(table_cursor)
+        ensure_cpu_data_table(table_cursor, table_name)
+        cursor.execute(
+            f"SELECT charge, ram, temperature, alerte, horodatage FROM `{table_name}` ORDER BY horodatage DESC LIMIT %s",
+            (limit,)
+        )
+        return cursor.fetchall()
+    finally:
+        table_cursor.close()
+        cursor.close()
+        conn.close()
+
  
 AVAILABLE_ROLES = {
     "Operat": "Operateur",
@@ -736,6 +820,41 @@ def api_automate_status():
             "error_code": automate_status["error_code"],
         }
     )
+
+
+@app.route("/api/cpu-temperature")
+def api_cpu_temperature():
+    """Enregistre la température OPC UA et retourne les dernières données CPU"""
+    try:
+        # Récupérer les variables OPC UA
+        variables = get_automate_variables_details()
+        
+        if variables["ok"] and variables["data"]:
+            charge = variables["data"].get("cpu_load", 0)
+            ram = variables["data"].get("ram_usage", 0)
+            temp = variables["data"].get("temp_c", 0)
+            
+            # Enregistrer les données dans la base de données
+            enregistrer_temperature(charge, ram, temp)
+        
+        # Retourner la dernière température enregistrée
+        dernier = recuperer_derniere_temperature()
+        if dernier:
+            return jsonify(
+                {
+                    "ok": True,
+                    "charge": dernier["charge"],
+                    "ram": dernier["ram"],
+                    "temperature": dernier["temperature"],
+                    "alerte": dernier["alerte"],
+                    "horodatage": dernier["horodatage"].isoformat() if dernier["horodatage"] else None,
+                }
+            )
+        else:
+            return jsonify({"ok": False, "message": "Aucune donnée CPU disponible"}), 404
+            
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
 
 
 @app.route("/responsable")

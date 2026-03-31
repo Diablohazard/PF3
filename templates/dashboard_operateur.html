@@ -739,5 +739,80 @@
         setInterval(refreshAutomateStatus, 60000);
     </script>
 
+    <style>
+        .temperature-animate {
+            transition: color 0.5s ease, transform 0.5s ease;
+        }
+
+        .temperature-danger {
+            color: #dc3545 !important;
+        }
+
+        .temperature-warning {
+            color: #ff8c00 !important;
+        }
+
+        .temperature-normal {
+            color: #28a745 !important;
+        }
+    </style>
+
+    <script>
+        function refreshCpuTemperature() {
+            // Vérifier si l'utilisateur a accès aux sections intégrateur
+            const integratorSection = document.querySelector('[hidden] .accordion-item');
+            if (integratorSection && integratorSection.hasAttribute('hidden')) {
+                return;
+            }
+
+            fetch('/api/cpu-temperature')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.ok && data.temperature !== undefined) {
+                        const tempElement = document.getElementById('cpu-temp');
+                        if (tempElement) {
+                            const oldTemp = parseFloat(tempElement.textContent);
+                            const newTemp = parseFloat(data.temperature);
+                            
+                            // Ajouter la classe animation
+                            tempElement.classList.add('temperature-animate');
+                            
+                            // Mettre à jour la température
+                            tempElement.textContent = newTemp.toFixed(2) + ' °C';
+                            
+                            // Changer la couleur selon la température
+                            tempElement.classList.remove('temperature-danger', 'temperature-warning', 'temperature-normal');
+                            if (newTemp > 85) {
+                                tempElement.classList.add('temperature-danger');
+                            } else if (newTemp > 70) {
+                                tempElement.classList.add('temperature-warning');
+                            } else {
+                                tempElement.classList.add('temperature-normal');
+                            }
+                            
+                            // Mettre à jour la barre de charge CPU aussi
+                            const cpuLoadElement = document.getElementById('cpu-load');
+                            if (cpuLoadElement && data.charge !== undefined) {
+                                cpuLoadElement.textContent = parseFloat(data.charge).toFixed(1) + ' %';
+                            }
+                            
+                            // Mettre à jour RAM aussi
+                            const ramUsageElement = document.getElementById('ram-usage');
+                            if (ramUsageElement && data.ram !== undefined) {
+                                ramUsageElement.textContent = parseFloat(data.ram).toFixed(1) + ' %';
+                            }
+                        }
+                    }
+                })
+                .catch(error => console.error('Erreur refresh température:', error));
+        }
+
+        // Rafraîchir la température toutes les 60 secondes
+        setInterval(refreshCpuTemperature, 60000);
+        
+        // Rafraîchir immédiatement au chargement de la page
+        document.addEventListener('DOMContentLoaded', refreshCpuTemperature);
+    </script>
+
 </body>
 </html>
