@@ -906,9 +906,9 @@
                         const puissance = parseFloat(data.puissance);
                         const energie = parseFloat(data.energie);
 
-                        courantElement.textContent = Number.isFinite(courant) ? courant.toFixed(2) : '--';
-                        puissanceElement.textContent = Number.isFinite(puissance) ? puissance.toFixed(2) : '--';
-                        energieElement.textContent = Number.isFinite(energie) ? energie.toFixed(2) : '--';
+                        courantElement.textContent = Number.isFinite(courant) ? courant.toFixed(2) + ' kWh' : '--';
+                        puissanceElement.textContent = Number.isFinite(puissance) ? puissance.toFixed(2) + ' kWh' : '--';
+                        energieElement.textContent = Number.isFinite(energie) ? energie.toFixed(2) + ' kWh' : '--';
 
                         if (updatedAtElement) {
                             updatedAtElement.textContent = 'Dernière mise à jour: ' + (data.horodatage || '--');
