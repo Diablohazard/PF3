@@ -80,6 +80,17 @@ def _check_connection(url, username, password, timeout):
 
 def get_opcua_status_details():
     config = _get_opcua_config()
+
+    # If credentials are provided, test authenticated connectivity directly.
+    # This avoids false negatives when GetEndpoints is slow/unavailable.
+    if config["username"]:
+        return _check_connection(
+            config["url"],
+            config["username"],
+            config["password"],
+            config["timeout"],
+        )
+
     try:
         anonymous_allowed = server_accepts_anonymous(
             config["url"],
