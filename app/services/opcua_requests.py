@@ -121,9 +121,18 @@ def read_node_value_sync(url, username, password, node_id, timeout=10):
 def read_named_nodes_sync(url, username, password, node_ids, timeout=10):
     def _operation(client):
         values = {}
+        errors = {}
         for name, node_id in node_ids.items():
-            node = client.get_node(node_id)
-            values[name] = node.get_value()
+            try:
+                node = client.get_node(node_id)
+                values[name] = node.get_value()
+            except Exception as exc:
+                values[name] = None
+                errors[name] = str(exc)
+
+        # If nothing is readable, surface an error so callers can report OPC UA failure.
+        if errors and len(errors) == len(node_ids):
+            raise RuntimeError(f"Aucune variable OPC UA lisible: {errors}")
 
         return values
 

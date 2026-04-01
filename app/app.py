@@ -1044,13 +1044,21 @@ def api_suivi_consommation():
     opcua_error_code = None
     live_data = None
 
+    def _safe_float(value, default=0.0):
+        try:
+            if value is None:
+                return default
+            return float(value)
+        except (TypeError, ValueError):
+            return default
+
     try:
         variables = get_automate_variables_details()
         if variables.get("ok") and variables.get("data"):
             data = variables["data"]
-            courant = data.get("energ_act_l1", 0)
-            puissance = data.get("energ_act_l2", 0)
-            energie = data.get("energ_act_tot", 0)
+            courant = _safe_float(data.get("energ_act_l1"), 0.0)
+            puissance = _safe_float(data.get("energ_act_l2"), 0.0)
+            energie = _safe_float(data.get("energ_act_tot"), 0.0)
             live_data = {
                 "courant": courant,
                 "puissance": puissance,
