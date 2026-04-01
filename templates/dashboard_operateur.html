@@ -575,12 +575,8 @@
             } else {
                 content.style.maxHeight = content.scrollHeight + "px";
 
-                // Redraw Chart.js only when the consumption accordion becomes visible.
-                if (
-                    header.textContent &&
-                    header.textContent.includes("Suivi des consommations électriques") &&
-                    typeof window.refreshConsoChart === "function"
-                ) {
+                // Redraw Chart.js when the opened accordion contains the consumption chart.
+                if (content.querySelector('#consoChart') && typeof window.refreshConsoChart === "function") {
                     setTimeout(() => window.refreshConsoChart(), 80);
                 }
             }
@@ -932,8 +928,12 @@
         let currentConsoType = 'courant';
 
         function refreshConsoChart() {
+            const errorEl = document.getElementById('conso-error');
+            if (errorEl) {
+                errorEl.textContent = 'Chargement du graphique en cours...';
+            }
+
             if (typeof Chart === 'undefined') {
-                const errorEl = document.getElementById('conso-error');
                 if (errorEl) {
                     errorEl.textContent = 'Chart.js non chargé: impossible d\'afficher le graphique.';
                 }
@@ -947,9 +947,8 @@
                 .then(response => response.json())
                 .then(data => {
                     if (!data.ok || !data.data) {
-                        const errorEl = document.getElementById('conso-error');
                         if (errorEl) {
-                            errorEl.textContent = data.message || 'Erreur lors de la récupération des données.';
+                            errorEl.textContent = data.message || data.error || 'Erreur lors de la récupération des données.';
                         }
                         return;
                     }
@@ -1017,12 +1016,10 @@
                     });
 
                     const sourceEl = document.getElementById('conso-source');
-                    const errorEl = document.getElementById('conso-error');
                     if (sourceEl) sourceEl.textContent = 'Source: base de données';
                     if (errorEl) errorEl.textContent = '';
                 })
                 .catch(error => {
-                    const errorEl = document.getElementById('conso-error');
                     if (errorEl) {
                         errorEl.textContent = 'Erreur réseau: ' + error;
                     }
