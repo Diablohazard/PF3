@@ -242,6 +242,18 @@ def ensure_suivi_conso_table(cursor, table_name):
         """
     )
 
+    # Backward-compatible migration: ensure expected columns exist on older tables.
+    cursor.execute(f"SHOW COLUMNS FROM `{table_name}`")
+    existing_columns = {row[0].lower() for row in cursor.fetchall()}
+
+    if "horodatage" not in existing_columns:
+        cursor.execute(
+            f"ALTER TABLE `{table_name}` ADD COLUMN horodatage TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
+        )
+
+    if "id_role" not in existing_columns:
+        cursor.execute(f"ALTER TABLE `{table_name}` ADD COLUMN id_role INT")
+
 
 def enregistrer_suivi_conso(courant, puissance, energie):
     conn = get_db_connection()
