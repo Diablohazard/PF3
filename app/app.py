@@ -4,6 +4,8 @@ from datetime import datetime
 import mysql.connector
 from dotenv import load_dotenv
 from flask import Flask, render_template, request, redirect, url_for, jsonify, session
+from services.opcua_status import get_opcua_status_details, get_automate_variables_details
+from services.opcua_requests import close_persistent_client
  
 load_dotenv()
  
@@ -16,9 +18,9 @@ def get_db_connection():
     return mysql.connector.connect(
         host=os.getenv("DB_HOST", "localhost").strip('"'),
         port=int(os.getenv("DB_PORT", "8181").strip('"')),
-        user=os.getenv("DB_USER", "root").strip('"'),
-        password=os.getenv("DB_PASSWORD", "").strip('"'),
-        database=os.getenv("DB_NAME", os.getenv("DB_DATABASE", "PF3")).strip('"')
+        user=os.getenv("DB_USER", "pf3user").strip('"'),
+        password=os.getenv("DB_PASSWORD", "pf3password").strip('"'),
+        database=os.getenv("DB_NAME", os.getenv("DB_DATABASE", "pf3")).strip('"')
     )
  
  
@@ -126,6 +128,185 @@ def supprimer_intervention(id_inter):
 
 def can_manage_maintenance():
     return session.get("logged_in") and session.get("role") in ("Respo", "Integ", "Admin")
+
+
+def get_cpu_data_table_name(cursor):
+    cursor.execute(
+        """
+        SELECT TABLE_NAME
+        FROM information_schema.TABLES
+        WHERE TABLE_SCHEMA = DATABASE()
+          AND TABLE_NAME IN ('donnees_cpu', 'Donnees_cpu')
+        ORDER BY CASE WHEN TABLE_NAME = 'donnees_cpu' THEN 0 ELSE 1 END
+        LIMIT 1
+        """
+    )
+    row = cursor.fetchone()
+    return row[0] if row else "donnees_cpu"
+
+
+def ensure_cpu_data_table(cursor, table_name):
+    cursor.execute(
+        f"""
+        CREATE TABLE IF NOT EXISTS `{table_name}` (
+            id_cpu INT AUTO_INCREMENT PRIMARY KEY,
+            charge FLOAT NOT NULL,
+            ram FLOAT NOT NULL,
+            temperature FLOAT NOT NULL,
+            alerte VARCHAR(50),
+            id_role INT,
+            horodatage TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+        """
+    )
+
+
+def enregistrer_temperature(charge, ram, temperature, alerte=None):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    try:
+        table_name = get_cpu_data_table_name(cursor)
+        ensure_cpu_data_table(cursor, table_name)
+        sql = f"INSERT INTO `{table_name}` (charge, ram, temperature, alerte) VALUES (%s, %s, %s, %s)"
+        cursor.execute(sql, (charge, ram, temperature, alerte))
+        conn.commit()
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def recuperer_derniere_temperature():
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    table_cursor = conn.cursor()
+
+    try:
+        table_name = get_cpu_data_table_name(table_cursor)
+        ensure_cpu_data_table(table_cursor, table_name)
+        cursor.execute(
+            f"SELECT charge, ram, temperature, alerte, horodatage FROM `{table_name}` ORDER BY horodatage DESC LIMIT 1"
+        )
+        return cursor.fetchone()
+    finally:
+        table_cursor.close()
+        cursor.close()
+        conn.close()
+
+
+def recuperer_historique_temperature(limit=60):
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    table_cursor = conn.cursor()
+
+    try:
+        table_name = get_cpu_data_table_name(table_cursor)
+        ensure_cpu_data_table(table_cursor, table_name)
+        cursor.execute(
+            f"SELECT charge, ram, temperature, alerte, horodatage FROM `{table_name}` ORDER BY horodatage DESC LIMIT %s",
+            (limit,)
+        )
+        return cursor.fetchall()
+    finally:
+        table_cursor.close()
+        cursor.close()
+        conn.close()
+
+
+def get_suivi_conso_table_name(cursor):
+    cursor.execute(
+        """
+        SELECT TABLE_NAME
+        FROM information_schema.TABLES
+        WHERE TABLE_SCHEMA = DATABASE()
+          AND TABLE_NAME IN ('suivi_conso', 'Suivi_conso')
+        ORDER BY CASE WHEN TABLE_NAME = 'suivi_conso' THEN 0 ELSE 1 END
+        LIMIT 1
+        """
+    )
+    row = cursor.fetchone()
+    return row[0] if row else "suivi_conso"
+
+
+def ensure_suivi_conso_table(cursor, table_name):
+    cursor.execute(
+        f"""
+        CREATE TABLE IF NOT EXISTS `{table_name}` (
+            id_suivi INT AUTO_INCREMENT PRIMARY KEY,
+            courant FLOAT NOT NULL,
+            puissance FLOAT NOT NULL,
+            energie DECIMAL(15,2) NOT NULL,
+            id_role INT,
+            horodatage TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+        """
+    )
+
+    # Backward-compatible migration: ensure expected columns exist on older tables.
+    cursor.execute(f"SHOW COLUMNS FROM `{table_name}`")
+    existing_columns = {row[0].lower() for row in cursor.fetchall()}
+
+    if "horodatage" not in existing_columns:
+        cursor.execute(
+            f"ALTER TABLE `{table_name}` ADD COLUMN horodatage TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
+        )
+
+    if "id_role" not in existing_columns:
+        cursor.execute(f"ALTER TABLE `{table_name}` ADD COLUMN id_role INT")
+
+
+def enregistrer_suivi_conso(courant, puissance, energie):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    try:
+        table_name = get_suivi_conso_table_name(cursor)
+        ensure_suivi_conso_table(cursor, table_name)
+        sql = f"INSERT INTO `{table_name}` (courant, puissance, energie) VALUES (%s, %s, %s)"
+        cursor.execute(sql, (courant, puissance, energie))
+        conn.commit()
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def recuperer_dernier_suivi_conso():
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    table_cursor = conn.cursor()
+
+    try:
+        table_name = get_suivi_conso_table_name(table_cursor)
+        ensure_suivi_conso_table(table_cursor, table_name)
+        cursor.execute(
+            f"SELECT courant, puissance, energie, horodatage FROM `{table_name}` ORDER BY horodatage DESC LIMIT 1"
+        )
+        return cursor.fetchone()
+    finally:
+        table_cursor.close()
+        cursor.close()
+        conn.close()
+
+
+def recuperer_historique_suivi_conso(limit=60):
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    table_cursor = conn.cursor()
+
+    try:
+        table_name = get_suivi_conso_table_name(table_cursor)
+        ensure_suivi_conso_table(table_cursor, table_name)
+        cursor.execute(
+            f"SELECT courant, puissance, energie, horodatage FROM `{table_name}` ORDER BY horodatage ASC LIMIT %s",
+            (limit,)
+        )
+        return cursor.fetchall()
+    finally:
+        table_cursor.close()
+        cursor.close()
+        conn.close()
+
+
  
 AVAILABLE_ROLES = {
     "Operat": "Operateur",
@@ -603,7 +784,20 @@ def login():
         else:
             error = "Identifiants incorrects"
  
-    return render_template("login.html", error=error)
+    return render_template(
+        "login.html",
+        error=error,
+        automate_ok=_last_opcua_status["ok"],
+        automate_error=_last_opcua_status["error"],
+        automate_error_code=_last_opcua_status["error_code"],
+    )
+
+
+@app.route("/logout", methods=["POST"])
+def logout():
+    session.clear()
+    close_persistent_client()
+    return redirect(url_for("login"))
  
 @app.route("/dashboard")
 def dashboard_op():
@@ -616,6 +810,9 @@ def dashboard_op():
         role=session.get("role"),
         registered_users=fetch_registered_users(),
         available_roles=AVAILABLE_ROLES,
+        automate_ok=_last_opcua_status["ok"],
+        automate_error=_last_opcua_status["error"],
+        automate_error_code=_last_opcua_status["error_code"],
     )
  
  
@@ -711,6 +908,251 @@ def get_interventions_json():
         for row in interventions
     ]
     return jsonify({"success": True, "interventions": result})
+
+
+# Statut OPC UA en cache — mis à jour à chaque lecture de variable (cpu-temperature, suivi-consommation).
+_last_opcua_status = {"ok": None, "error": None, "error_code": None}
+
+
+@app.route("/api/automate-status")
+def api_automate_status():
+    """Retourne le dernier statut OPC UA connu sans déclencher de connexion supplémentaire."""
+    return jsonify(_last_opcua_status)
+
+
+@app.route("/api/cpu-temperature")
+def api_cpu_temperature():
+    """Affiche la dernière valeur de base et met à jour la base via OPC UA quand possible."""
+    opcua_error = None
+    opcua_error_code = None
+    live_data = None
+
+    # 1) Tenter une lecture OPC UA pour enrichir la base, sans bloquer l'affichage.
+    try:
+        variables = get_automate_variables_details()
+        if variables.get("ok") and variables.get("data"):
+            data = variables["data"]
+            charge = data.get("cpu_load", 0)
+            ram = data.get("ram_usage", 0)
+            temp = data.get("temp_c", 0)
+            live_data = {
+                "charge": charge,
+                "ram": ram,
+                "temperature": temp,
+                "horodatage": datetime.utcnow().isoformat() + "Z",
+            }
+            _last_opcua_status["ok"] = True
+            _last_opcua_status["error"] = None
+            _last_opcua_status["error_code"] = None
+            try:
+                enregistrer_temperature(charge, ram, temp)
+            except Exception:
+                # Si l'insertion échoue, on continue quand meme avec la lecture DB/fallback live.
+                pass
+        else:
+            opcua_error = (variables or {}).get("error", "Lecture OPC UA impossible")
+            opcua_error_code = (variables or {}).get("error_code")
+            _last_opcua_status["ok"] = False
+            _last_opcua_status["error"] = opcua_error
+            _last_opcua_status["error_code"] = opcua_error_code
+    except Exception as exc:
+        opcua_error = str(exc)
+        opcua_error_code = type(exc).__name__
+        _last_opcua_status["ok"] = False
+        _last_opcua_status["error"] = opcua_error
+        _last_opcua_status["error_code"] = opcua_error_code
+
+    # 2) Source principale: dernière valeur en base.
+    try:
+        dernier = recuperer_derniere_temperature()
+        if dernier:
+            return jsonify(
+                {
+                    "ok": True,
+                    "source": "database",
+                    "charge": dernier["charge"],
+                    "ram": dernier["ram"],
+                    "temperature": dernier["temperature"],
+                    "alerte": dernier["alerte"],
+                    "horodatage": dernier["horodatage"].isoformat() if dernier["horodatage"] else None,
+                    "opcua_ok": opcua_error is None,
+                    "opcua_error": opcua_error,
+                    "opcua_error_code": opcua_error_code,
+                }
+            )
+    except Exception as db_exc:
+        # 3) Si la base échoue mais qu'on a une valeur live, on l'affiche quand meme.
+        if live_data is not None:
+            return jsonify(
+                {
+                    "ok": True,
+                    "source": "opcua_live",
+                    "charge": live_data["charge"],
+                    "ram": live_data["ram"],
+                    "temperature": live_data["temperature"],
+                    "alerte": None,
+                    "horodatage": live_data["horodatage"],
+                    "db_error": str(db_exc),
+                    "opcua_ok": True,
+                }
+            )
+        return jsonify({"ok": False, "error": str(db_exc)}), 500
+
+    # 4) Si la base est vide mais qu'on a une valeur live OPC UA, on l'utilise.
+    if live_data is not None:
+        return jsonify(
+            {
+                "ok": True,
+                "source": "opcua_live",
+                "charge": live_data["charge"],
+                "ram": live_data["ram"],
+                "temperature": live_data["temperature"],
+                "alerte": None,
+                "horodatage": live_data["horodatage"],
+                "opcua_ok": True,
+            }
+        )
+
+    return jsonify(
+        {
+            "ok": False,
+            "error": "Aucune donnée CPU disponible",
+            "opcua_error": opcua_error,
+            "opcua_error_code": opcua_error_code,
+        }
+    ), 404
+
+
+@app.route("/api/suivi-consommation-historique")
+def api_suivi_consommation_historique():
+    """Retourne l'historique des données de consommation (derniers 60 enregistrements)."""
+    try:
+        historique = recuperer_historique_suivi_conso(limit=60)
+        if not historique:
+            return jsonify({
+                "ok": False,
+                "message": "Aucune donnée d'historique disponible"
+            }), 404
+        
+        result = [
+            {
+                "courant": float(row["courant"]),
+                "puissance": float(row["puissance"]),
+                "energie": float(row["energie"]),
+                "horodatage": row["horodatage"].isoformat() if row["horodatage"] else None,
+            }
+            for row in historique
+        ]
+        return jsonify({
+            "ok": True,
+            "data": result,
+            "count": len(result)
+        })
+    except Exception as e:
+        return jsonify({
+            "ok": False,
+            "error": str(e)
+        }), 500
+
+@app.route("/api/suivi-consommation")
+def api_suivi_consommation():
+    """Mappe les variables énergétiques OPC UA vers suivi_conso et retourne la dernière ligne."""
+    opcua_error = None
+    opcua_error_code = None
+    live_data = None
+
+    def _safe_float(value, default=0.0):
+        try:
+            if value is None:
+                return default
+            return float(value)
+        except (TypeError, ValueError):
+            return default
+
+    try:
+        variables = get_automate_variables_details()
+        if variables.get("ok") and variables.get("data"):
+            data = variables["data"]
+            courant = _safe_float(data.get("energ_act_l1"), 0.0)
+            puissance = _safe_float(data.get("energ_act_l2"), 0.0)
+            energie = _safe_float(data.get("energ_act_tot"), 0.0)
+            _last_opcua_status["ok"] = True
+            _last_opcua_status["error"] = None
+            _last_opcua_status["error_code"] = None
+            live_data = {
+                "courant": courant,
+                "puissance": puissance,
+                "energie": energie,
+                "horodatage": datetime.utcnow().isoformat() + "Z",
+            }
+            try:
+                enregistrer_suivi_conso(courant, puissance, energie)
+            except Exception:
+                pass
+        else:
+            opcua_error = (variables or {}).get("error", "Lecture OPC UA impossible")
+            opcua_error_code = (variables or {}).get("error_code")
+            _last_opcua_status["ok"] = False
+            _last_opcua_status["error"] = opcua_error
+            _last_opcua_status["error_code"] = opcua_error_code
+    except Exception as exc:
+        opcua_error = str(exc)
+        opcua_error_code = type(exc).__name__
+        _last_opcua_status["ok"] = False
+        _last_opcua_status["error"] = opcua_error
+        _last_opcua_status["error_code"] = opcua_error_code
+
+    try:
+        dernier = recuperer_dernier_suivi_conso()
+        if dernier:
+            return jsonify(
+                {
+                    "ok": True,
+                    "source": "database",
+                    "courant": float(dernier["courant"]),
+                    "puissance": float(dernier["puissance"]),
+                    "energie": float(dernier["energie"]),
+                    "horodatage": dernier["horodatage"].isoformat() if dernier["horodatage"] else None,
+                    "opcua_ok": opcua_error is None,
+                    "opcua_error": opcua_error,
+                    "opcua_error_code": opcua_error_code,
+                }
+            )
+    except Exception as db_exc:
+        if live_data is not None:
+            return jsonify(
+                {
+                    "ok": True,
+                    "source": "opcua_live",
+                    "courant": live_data["courant"],
+                    "puissance": live_data["puissance"],
+                    "energie": live_data["energie"],
+                    "horodatage": live_data["horodatage"],
+                    "db_error": str(db_exc),
+                }
+            )
+        return jsonify({"ok": False, "error": str(db_exc)}), 500
+
+    if live_data is not None:
+        return jsonify(
+            {
+                "ok": True,
+                "source": "opcua_live",
+                "courant": live_data["courant"],
+                "puissance": live_data["puissance"],
+                "energie": live_data["energie"],
+                "horodatage": live_data["horodatage"],
+            }
+        )
+
+    return jsonify(
+        {
+            "ok": False,
+            "error": "Aucune donnée de consommation disponible",
+            "opcua_error": opcua_error,
+            "opcua_error_code": opcua_error_code,
+        }
+    ), 404
 
 
 @app.route("/responsable")

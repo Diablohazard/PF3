@@ -45,3 +45,20 @@ def recuperer_interventions():
 def dashboard():
     interventions = recuperer_interventions()
     return render_template("dashboard.html", interventions=interventions)
+
+# Importe ta nouvelle fonction en haut du fichier
+from app.services.opcua_status import get_opcua_status_details
+
+# ... dans la définition de ta route login :
+@app.route('/') # ou '/login'
+def login():
+    # On teste l'automate
+    automate_status = get_opcua_status_details()
+    
+    # On envoie le résultat (True/False) à la page web
+    return render_template(
+        'login.html',
+        automate_ok=automate_status['ok'],
+        automate_error=automate_status['error'],
+        automate_error_code=automate_status['error_code'],
+    )

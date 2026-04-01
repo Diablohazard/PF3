@@ -4,8 +4,65 @@
     <meta charset="UTF-8">
     <title>Connexion</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <style>
+        .automate-status {
+            position: absolute;
+            top: 15px;
+            left: 15px;
+            padding: 8px 15px;
+            border-radius: 5px;
+            font-family: Arial, sans-serif;
+            font-weight: bold;
+            color: white;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+            z-index: 1000;
+            max-width: 420px;
+        }
+
+        .automate-ok {
+            background-color: #28a745;
+        }
+
+        .automate-ko {
+            background-color: #dc3545;
+        }
+
+        .automate-error {
+            margin-top: 6px;
+            font-size: 0.85rem;
+            font-weight: normal;
+            line-height: 1.4;
+            white-space: normal;
+            word-break: break-word;
+        }
+
+        .automate-error-code {
+            margin-top: 4px;
+            font-size: 0.8rem;
+            font-weight: normal;
+            opacity: 0.95;
+        }
+    </style>
 </head>
 <body class="login-body">
+
+    {% set automate_status = automate_ok|default(false) %}
+    {% set automate_error_message = automate_error|default('') %}
+    {% set automate_error_code_value = automate_error_code|default('') %}
+
+    <div class="automate-status {% if automate_status %}automate-ok{% else %}automate-ko{% endif %}">
+        {% if automate_status %}
+            🟢 Automate Wago : En Ligne
+        {% else %}
+            🔴 Automate Wago : Hors Ligne
+            {% if automate_error_message %}
+                <div class="automate-error">{{ automate_error_message }}</div>
+            {% endif %}
+            {% if automate_error_code_value %}
+                <div class="automate-error-code">Code erreur : {{ automate_error_code_value }}</div>
+            {% endif %}
+        {% endif %}
+    </div>
 
     <div class="login-container">
         <img src="{{ url_for('static', filename='images/logo.png/logo.png') }}" class="logo">
@@ -23,6 +80,35 @@
             <p class="error">{{ error }}</p>
         {% endif %}
     </div>
+
+    <script>
+        function refreshAutomateStatus() {
+            fetch('/api/automate-status')
+                .then(response => response.json())
+                .then(data => {
+                    const statusBox = document.querySelector('.automate-status');
+                    if (statusBox) {
+                        statusBox.className = 'automate-status ' + (data.ok ? 'automate-ok' : 'automate-ko');
+                        if (data.ok) {
+                            statusBox.innerHTML = '🟢 Automate Wago : En Ligne';
+                        } else {
+                            let content = '🔴 Automate Wago : Hors Ligne';
+                            if (data.error) {
+                                content += `<div class="automate-error">${data.error}</div>`;
+                            }
+                            if (data.error_code) {
+                                content += `<div class="automate-error-code">Code erreur : ${data.error_code}</div>`;
+                            }
+                            statusBox.innerHTML = content;
+                        }
+                    }
+                })
+                .catch(error => console.error('Erreur refresh automate:', error));
+        }
+
+        // Rafraîchir toutes les 60 secondes (60000 ms)
+        setInterval(refreshAutomateStatus, 60000);
+    </script>
 
 </body>
 </html>

@@ -4,7 +4,44 @@
     <meta charset="UTF-8">
     <title>Dashboard</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
     <style>
+        .automate-status {
+            position: relative;
+            padding: 8px 15px;
+            border-radius: 5px;
+            font-family: Arial, sans-serif;
+            font-weight: bold;
+            color: white;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+            max-width: 420px;
+            margin: 12px 0 8px 15px;
+        }
+
+        .automate-ok {
+            background-color: #28a745;
+        }
+
+        .automate-ko {
+            background-color: #dc3545;
+        }
+
+        .automate-error {
+            margin-top: 6px;
+            font-size: 0.85rem;
+            font-weight: normal;
+            line-height: 1.4;
+            white-space: normal;
+            word-break: break-word;
+        }
+
+        .automate-error-code {
+            margin-top: 4px;
+            font-size: 0.8rem;
+            font-weight: normal;
+            opacity: 0.95;
+        }
+
         .accordion {
             margin-bottom: 24px; /* espace entre chaque feuillet */
         }
@@ -40,13 +77,177 @@
                     padding: 0;
                 }
 
+                .cpu-history-grid {
+                    display: grid;
+                    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+                    gap: 14px;
+                    margin-top: 12px;
+                }
+
+                .metric-card {
+                    background: #ffffff;
+                    border: 1px solid #e8ecef;
+                    border-radius: 12px;
+                    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+                    padding: 14px;
+                }
+
+                .metric-label {
+                    margin: 0 0 8px 0;
+                    font-size: 0.95rem;
+                    color: #4b5563;
+                    font-weight: 600;
+                }
+
+                .metric-value {
+                    font-size: 1.85rem;
+                    line-height: 1;
+                    font-weight: 700;
+                    color: #1f2937;
+                    margin-bottom: 8px;
+                }
+
+                .metric-bar {
+                    width: 100%;
+                    height: 10px;
+                    background: #eef2f7;
+                    border-radius: 999px;
+                    overflow: hidden;
+                }
+
+                .metric-bar-fill {
+                    height: 100%;
+                    width: 0%;
+                    transition: width 0.5s ease, background-color 0.5s ease;
+                }
+
+                #cpu-load-bar {
+                    background: linear-gradient(90deg, #2a9d8f, #4caf50);
+                }
+
+                #ram-usage-bar {
+                    background: linear-gradient(90deg, #1d7fd0, #55a8e9);
+                }
+
+                .thermo-wrap {
+                    display: flex;
+                    align-items: center;
+                    gap: 14px;
+                }
+
+                .thermometer {
+                    width: 34px;
+                    height: 118px;
+                    border: 3px solid #d4d9df;
+                    border-radius: 20px;
+                    background: #f3f6fa;
+                    position: relative;
+                    overflow: hidden;
+                }
+
+                .thermometer-fill {
+                    position: absolute;
+                    left: 0;
+                    bottom: 0;
+                    width: 100%;
+                    height: 0%;
+                    transition: height 0.7s ease, background-color 0.5s ease;
+                    background: linear-gradient(180deg, #ffca3a, #f77f00);
+                }
+
+                .thermometer-bulb {
+                    width: 18px;
+                    height: 18px;
+                    border-radius: 50%;
+                    background: #f77f00;
+                    position: absolute;
+                    bottom: -10px;
+                    left: 50%;
+                    transform: translateX(-50%);
+                    border: 2px solid #d4d9df;
+                }
+
+                .temperature-danger {
+                    color: #dc3545 !important;
+                }
+
+                .temperature-warning {
+                    color: #ff8c00 !important;
+                }
+
+                .temperature-normal {
+                    color: #28a745 !important;
+                }
+
+                .conso-grid {
+                    display: grid;
+                    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+                    gap: 14px;
+                    margin-top: 12px;
+                }
+
+                .conso-card {
+                    background: #ffffff;
+                    border: 1px solid #e8ecef;
+                    border-radius: 12px;
+                    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+                    padding: 14px;
+                }
+
+                .conso-label {
+                    margin: 0 0 8px 0;
+                    color: #4b5563;
+                    font-weight: 600;
+                }
+
+                .conso-value {
+                    font-size: 1.6rem;
+                    font-weight: 700;
+                    color: #1f2937;
+                }
+
+                .conso-meta {
+                    margin-top: 10px;
+                    font-size: 0.88rem;
+                    color: #6b7280;
+                }
+
+                .conso-btn {
+                    padding: 12px 16px;
+                    border: 2px solid #d1d5db;
+                    background: #ffffff;
+                    color: #1f2937;
+                    font-weight: 600;
+                    border-radius: 8px;
+                    cursor: pointer;
+                    transition: all 0.3s ease;
+                    font-size: 0.95rem;
+                }
+
+                .conso-btn:hover {
+                    border-color: #3b82f6;
+                    background: #f0f4f8;
+                }
+
+                .conso-btn-active {
+                    background: #3b82f6;
+                    color: #ffffff;
+                    border-color: #3b82f6;
+                }
+
+                .conso-btn-active:hover {
+                    background: #2563eb;
+                    border-color: #2563eb;
+                }
+
+
         </style>
 </head>
 <body>
 
 <header style="background: #cffbcd; color: rgb(0, 0, 0); display: flex; align-items: center; justify-content: space-between; padding: 10px;">
     <div style="flex: 1; text-align: left;">
-        <form action="/" method="get" style="display: inline;">
+        <form action="{{ url_for('logout') }}" method="post" style="display: inline;">
             <button type="submit" style="background: rgb(0, 0, 0); color: #fcfcfc; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer;">
                 Déconnexion
             </button>
@@ -65,6 +266,24 @@
     </div>
     <div style="flex: 1; text-align: right;" id="datetime"></div>
 </header>
+
+{% set automate_status = automate_ok|default(false) %}
+{% set automate_error_message = automate_error|default('') %}
+{% set automate_error_code_value = automate_error_code|default('') %}
+
+<div class="automate-status {% if automate_status %}automate-ok{% else %}automate-ko{% endif %}">
+    {% if automate_status %}
+        🟢 Automate Wago : En Ligne
+    {% else %}
+        🔴 Automate Wago : Hors Ligne
+        {% if automate_error_message %}
+            <div class="automate-error">{{ automate_error_message }}</div>
+        {% endif %}
+        {% if automate_error_code_value %}
+            <div class="automate-error-code">Code erreur : {{ automate_error_code_value }}</div>
+        {% endif %}
+    {% endif %}
+</div>
 
 <div class="container">
 
@@ -88,10 +307,22 @@
         <div class="accordion-item" {% if not can_view_responsable_sections %}hidden{% endif %}>
             <button class="accordion-header">Suivi des consommations électriques</button>
             <div class="accordion-content">
-                <div class="charts">
-                    <div class="chart">Graphique 1</div>
-                    <div class="chart">Graphique 2</div>
+                <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 20px;">
+                    <button id="btn-l1" class="conso-btn conso-btn-active" data-type="courant">
+                        Energie Active L1
+                    </button>
+                    <button id="btn-l2" class="conso-btn" data-type="puissance">
+                        Energie Active L2
+                    </button>
+                    <button id="btn-tot" class="conso-btn" data-type="energie">
+                        Energie Active Totale
+                    </button>
                 </div>
+                <div id="conso-chart-container" style="position: relative; width: 100%; height: 350px; margin-top: 15px;">
+                    <canvas id="consoChart"></canvas>
+                </div>
+                <div id="conso-error" class="conso-meta" style="color: #dc3545; margin-top: 10px;"></div>
+                <div id="conso-source" class="conso-meta" style="margin-top: 5px;"></div>
             </div>
         </div>
 
@@ -142,39 +373,33 @@
         <div class="accordion-item" {% if not can_view_integrateur_sections %}hidden{% endif %}>
             <button class="accordion-header">Historique de charge</button>
             <div class="accordion-content">
-                <div style="display: flex; gap: 10px; margin-top: 10px; align-items: flex-start;">
-                    <div class="accordion-item" style="flex: 1;">
-                        <button class="accordion-header" style="min-height: 120px; width: 100%; display: flex; align-items: center; justify-content: center; text-align: center;">
-                            Charge CPU
-                        </button>
-                        <div class="accordion-content">
-                            <div style="padding: 10px; text-align: center;">
-                                <p>Utilisation : <span id="cpu-load">-- %</span></p>
-                                <div style="width: 100%; background: #eee; height: 10px; border-radius: 5px;">
-                                    <div style="width: 45%; height: 100%; background: #4caf50; border-radius: 5px;"></div>
-                                </div>
-                            </div>
+                <div class="cpu-history-grid">
+                    <div class="metric-card">
+                        <p class="metric-label">Charge CPU</p>
+                        <div id="cpu-load" class="metric-value">-- %</div>
+                        <div class="metric-bar">
+                            <div id="cpu-load-bar" class="metric-bar-fill"></div>
                         </div>
                     </div>
 
-                    <div class="accordion-item" style="flex: 1;">
-                        <button class="accordion-header" style="min-height: 120px; width: 100%; display: flex; align-items: center; justify-content: center; text-align: center;">
-                            RAM CPU
-                        </button>
-                        <div class="accordion-content">
-                            <div style="padding: 10px; text-align: center;">
-                                <span id="ram-usage" style="font-size: 1.2rem; font-weight: bold;">8 / 16 Go</span>
-                            </div>
+                    <div class="metric-card">
+                        <p class="metric-label">RAM CPU</p>
+                        <div id="ram-usage" class="metric-value">-- %</div>
+                        <div class="metric-bar">
+                            <div id="ram-usage-bar" class="metric-bar-fill"></div>
                         </div>
                     </div>
 
-                    <div class="accordion-item" style="flex: 1;">
-                        <button class="accordion-header" style="min-height: 120px; width: 100%; display: flex; align-items: center; justify-content: center; text-align: center;">
-                            Temp. CPU
-                        </button>
-                        <div class="accordion-content">
-                            <div style="padding: 10px; text-align: center;">
-                                <span id="cpu-temp" style="font-size: 1.2rem; font-weight: bold; color: #e67e22;">55 °C</span>
+                    <div class="metric-card">
+                        <p class="metric-label">Temp. CPU</p>
+                        <div class="thermo-wrap">
+                            <div class="thermometer" aria-hidden="true">
+                                <div id="thermometer-fill" class="thermometer-fill"></div>
+                                <div id="thermometer-bulb" class="thermometer-bulb"></div>
+                            </div>
+                            <div>
+                                <div id="cpu-temp" class="metric-value">-- °C</div>
+                                <div id="cpu-temp-state" style="font-size: 0.9rem; color: #6b7280;">En attente de mesure</div>
                             </div>
                         </div>
                     </div>
@@ -349,6 +574,11 @@
                 content.style.maxHeight = null;
             } else {
                 content.style.maxHeight = content.scrollHeight + "px";
+
+                // Redraw Chart.js when the opened accordion contains the consumption chart.
+                if (content.querySelector('#consoChart') && typeof window.refreshConsoChart === "function") {
+                    setTimeout(() => window.refreshConsoChart(), 80);
+                }
             }
         });
     });
@@ -654,6 +884,253 @@
                     });
             };
         }
+    </script>
+
+    <script>
+        function refreshAutomateStatus() {
+            fetch('/api/automate-status')
+                .then(response => response.json())
+                .then(data => {
+                    const statusBox = document.querySelector('.automate-status');
+                    if (statusBox) {
+                        if (data.ok === null || data.ok === undefined) {
+                            statusBox.className = 'automate-status automate-ko';
+                            statusBox.innerHTML = '🔴 Automate Wago : Hors Ligne<div class="automate-error">Statut OPC UA indisponible pour le moment.</div>';
+                            return;
+                        }
+
+                        statusBox.className = 'automate-status ' + (data.ok ? 'automate-ok' : 'automate-ko');
+                        if (data.ok) {
+                            statusBox.innerHTML = '🟢 Automate Wago : En Ligne';
+                        } else {
+                            let content = '🔴 Automate Wago : Hors Ligne';
+                            if (data.error) {
+                                content += `<div class="automate-error">${data.error}</div>`;
+                            } else {
+                                content += '<div class="automate-error">Aucun détail d\'erreur disponible (timeout ou session non active).</div>';
+                            }
+                            if (data.error_code) {
+                                content += `<div class="automate-error-code">Code erreur : ${data.error_code}</div>`;
+                            }
+                            statusBox.innerHTML = content;
+                        }
+                    }
+                })
+                .catch(error => console.error('Erreur refresh automate:', error));
+        }
+
+        // Rafraîchir toutes les 60 secondes (60000 ms)
+        setInterval(refreshAutomateStatus, 60000);
+    </script>
+
+    <script>
+        let consoChart = null;
+        let currentConsoType = 'courant';
+
+        function refreshConsoChart() {
+            const errorEl = document.getElementById('conso-error');
+            if (errorEl) {
+                errorEl.textContent = 'Chargement du graphique en cours...';
+            }
+
+            if (typeof Chart === 'undefined') {
+                if (errorEl) {
+                    errorEl.textContent = 'Chart.js non chargé: impossible d\'afficher le graphique.';
+                }
+                return;
+            }
+
+            // Trigger live read + DB insert, then load the historical series for charting.
+            fetch('/api/suivi-consommation', { cache: 'no-store' })
+                .catch(() => null)
+                .then(() => fetch('/api/suivi-consommation-historique', { cache: 'no-store' }))
+                .then(response => response.json())
+                .then(data => {
+                    if (!data.ok || !data.data) {
+                        if (errorEl) {
+                            errorEl.textContent = data.message || data.error || 'Erreur lors de la récupération des données.';
+                        }
+                        return;
+                    }
+
+                    const labels = data.data.map(item => {
+                        const date = new Date(item.horodatage);
+                        return date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+                    });
+
+                    const values = data.data.map(item => {
+                        if (currentConsoType === 'courant') return parseFloat(item.courant);
+                        if (currentConsoType === 'puissance') return parseFloat(item.puissance);
+                        if (currentConsoType === 'energie') return parseFloat(item.energie);
+                        return 0;
+                    });
+
+                    const canvas = document.getElementById('consoChart');
+                    if (!canvas) return;
+
+                    const ctx = canvas.getContext('2d');
+
+                    if (consoChart) {
+                        consoChart.destroy();
+                    }
+
+                    consoChart = new Chart(ctx, {
+                        type: 'line',
+                        data: {
+                            labels: labels,
+                            datasets: [{
+                                label: currentConsoType === 'courant' ? 'Energie Active L1 (kWh)' :
+                                       currentConsoType === 'puissance' ? 'Energie Active L2 (kWh)' :
+                                       'Energie Active Totale (kWh)',
+                                data: values,
+                                borderColor: '#3b82f6',
+                                backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                                borderWidth: 2,
+                                fill: true,
+                                tension: 0.3,
+                                pointRadius: 4,
+                                pointBackgroundColor: '#3b82f6',
+                                pointBorderColor: '#ffffff',
+                                pointBorderWidth: 2
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                                legend: {
+                                    display: true,
+                                    position: 'top'
+                                }
+                            },
+                            scales: {
+                                y: {
+                                    beginAtZero: true,
+                                    title: {
+                                        display: true,
+                                        text: 'Consommation (kWh)'
+                                    }
+                                }
+                            }
+                        }
+                    });
+
+                    const sourceEl = document.getElementById('conso-source');
+                    if (sourceEl) sourceEl.textContent = 'Source: base de données';
+                    if (errorEl) errorEl.textContent = '';
+                })
+                .catch(error => {
+                    if (errorEl) {
+                        errorEl.textContent = 'Erreur réseau: ' + error;
+                    }
+                });
+        }
+
+        window.refreshConsoChart = refreshConsoChart;
+
+        function setupConsoButtons() {
+            const btnL1 = document.getElementById('btn-l1');
+            const btnL2 = document.getElementById('btn-l2');
+            const btnTot = document.getElementById('btn-tot');
+
+            if (!btnL1 || !btnL2 || !btnTot) return;
+
+            [btnL1, btnL2, btnTot].forEach(btn => {
+                btn.addEventListener('click', function() {
+                    currentConsoType = this.dataset.type;
+
+                    [btnL1, btnL2, btnTot].forEach(b => b.classList.remove('conso-btn-active'));
+                    this.classList.add('conso-btn-active');
+
+                    refreshConsoChart();
+                });
+            });
+        }
+
+        // Initialisation au chargement
+        setupConsoButtons();
+        refreshConsoChart();
+
+        // Rafraîchissement toutes les 30 secondes
+        setInterval(refreshConsoChart, 30000);
+    </script>
+
+    <script>
+        function refreshCpuTemperature() {
+            fetch('/api/cpu-temperature')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.ok && data.temperature !== undefined) {
+                        const tempElement = document.getElementById('cpu-temp');
+                        const tempStateElement = document.getElementById('cpu-temp-state');
+                        const thermoFill = document.getElementById('thermometer-fill');
+                        const thermoBulb = document.getElementById('thermometer-bulb');
+                        const cpuLoadElement = document.getElementById('cpu-load');
+                        const ramUsageElement = document.getElementById('ram-usage');
+                        const cpuLoadBar = document.getElementById('cpu-load-bar');
+                        const ramUsageBar = document.getElementById('ram-usage-bar');
+
+                        if (tempElement) {
+                            const newTemp = parseFloat(data.temperature) || 0;
+                            tempElement.textContent = newTemp.toFixed(2) + ' °C';
+
+                            tempElement.classList.remove('temperature-danger', 'temperature-warning', 'temperature-normal');
+
+                            let tempColor = '#28a745';
+                            let tempStatus = 'Normal';
+
+                            if (newTemp > 85) {
+                                tempElement.classList.add('temperature-danger');
+                                tempColor = '#dc3545';
+                                tempStatus = 'Alerte haute';
+                            } else if (newTemp > 70) {
+                                tempElement.classList.add('temperature-warning');
+                                tempColor = '#ff8c00';
+                                tempStatus = 'Surveillance';
+                            } else {
+                                tempElement.classList.add('temperature-normal');
+                                tempColor = '#28a745';
+                                tempStatus = 'Normal';
+                            }
+
+                            if (tempStateElement) {
+                                tempStateElement.textContent = tempStatus;
+                            }
+
+                            if (thermoFill) {
+                                const tempPercent = Math.max(0, Math.min(100, newTemp));
+                                thermoFill.style.height = tempPercent + '%';
+                                thermoFill.style.background = 'linear-gradient(180deg, #ffd166, ' + tempColor + ')';
+                            }
+
+                            if (thermoBulb) {
+                                thermoBulb.style.background = tempColor;
+                            }
+
+                            if (cpuLoadElement && data.charge !== undefined) {
+                                const cpuLoad = Math.max(0, Math.min(100, parseFloat(data.charge) || 0));
+                                cpuLoadElement.textContent = cpuLoad.toFixed(1) + ' %';
+                                if (cpuLoadBar) {
+                                    cpuLoadBar.style.width = cpuLoad + '%';
+                                }
+                            }
+
+                            if (ramUsageElement && data.ram !== undefined) {
+                                const ramUsage = Math.max(0, Math.min(100, parseFloat(data.ram) || 0));
+                                ramUsageElement.textContent = ramUsage.toFixed(1) + ' %';
+                                if (ramUsageBar) {
+                                    ramUsageBar.style.width = ramUsage + '%';
+                                }
+                            }
+                        }
+                    }
+                })
+                .catch(error => console.error('Erreur refresh température:', error));
+        }
+
+        // Rafraîchir la température toutes les 60 secondes
+        refreshCpuTemperature();
+        setInterval(refreshCpuTemperature, 60000);
     </script>
 
 </body>
