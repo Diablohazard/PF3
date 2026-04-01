@@ -574,6 +574,15 @@
                 content.style.maxHeight = null;
             } else {
                 content.style.maxHeight = content.scrollHeight + "px";
+
+                // Redraw Chart.js only when the consumption accordion becomes visible.
+                if (
+                    header.textContent &&
+                    header.textContent.includes("Suivi des consommations électriques") &&
+                    typeof window.refreshConsoChart === "function"
+                ) {
+                    setTimeout(() => window.refreshConsoChart(), 80);
+                }
             }
         });
     });
@@ -923,6 +932,14 @@
         let currentConsoType = 'courant';
 
         function refreshConsoChart() {
+            if (typeof Chart === 'undefined') {
+                const errorEl = document.getElementById('conso-error');
+                if (errorEl) {
+                    errorEl.textContent = 'Chart.js non chargé: impossible d\'afficher le graphique.';
+                }
+                return;
+            }
+
             // Trigger live read + DB insert, then load the historical series for charting.
             fetch('/api/suivi-consommation', { cache: 'no-store' })
                 .catch(() => null)
@@ -1011,6 +1028,8 @@
                     }
                 });
         }
+
+        window.refreshConsoChart = refreshConsoChart;
 
         function setupConsoButtons() {
             const btnL1 = document.getElementById('btn-l1');
