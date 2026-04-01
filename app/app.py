@@ -772,14 +772,12 @@ def login():
         else:
             error = "Identifiants incorrects"
  
-    # Vérifier l'état de la connexion OPC UA avec l'automate
-    automate_status = get_opcua_status_details()
     return render_template(
         "login.html",
         error=error,
-        automate_ok=automate_status["ok"],
-        automate_error=automate_status["error"],
-        automate_error_code=automate_status["error_code"],
+        automate_ok=_last_opcua_status["ok"],
+        automate_error=_last_opcua_status["error"],
+        automate_error_code=_last_opcua_status["error_code"],
     )
 
 
@@ -793,7 +791,6 @@ def logout():
 def dashboard_op():
     if not session.get("logged_in"):
         return redirect(url_for("login"))
-    automate_status = get_opcua_status_details()
     interventions = recuperer_interventions()
     return render_template(
         "dashboard_operateur.html",
@@ -801,9 +798,9 @@ def dashboard_op():
         role=session.get("role"),
         registered_users=fetch_registered_users(),
         available_roles=AVAILABLE_ROLES,
-        automate_ok=automate_status["ok"],
-        automate_error=automate_status["error"],
-        automate_error_code=automate_status["error_code"],
+        automate_ok=_last_opcua_status["ok"],
+        automate_error=_last_opcua_status["error"],
+        automate_error_code=_last_opcua_status["error_code"],
     )
  
  
@@ -901,16 +898,14 @@ def get_interventions_json():
     return jsonify({"success": True, "interventions": result})
 
 
+# Statut OPC UA en cache — mis à jour à chaque lecture de variable (cpu-temperature, suivi-consommation).
+_last_opcua_status = {"ok": None, "error": None, "error_code": None}
+
+
 @app.route("/api/automate-status")
 def api_automate_status():
-    automate_status = get_opcua_status_details()
-    return jsonify(
-        {
-            "ok": automate_status["ok"],
-            "error": automate_status["error"],
-            "error_code": automate_status["error_code"],
-        }
-    )
+    """Retourne le dernier statut OPC UA connu sans déclencher de connexion supplémentaire."""
+    return jsonify(_last_opcua_status)
 
 
 @app.route("/api/cpu-temperature")
@@ -934,6 +929,9 @@ def api_cpu_temperature():
                 "temperature": temp,
                 "horodatage": datetime.utcnow().isoformat() + "Z",
             }
+            _last_opcua_status["ok"] = True
+            _last_opcua_status["error"] = None
+            _last_opcua_status["error_code"] = None
             try:
                 enregistrer_temperature(charge, ram, temp)
             except Exception:
@@ -942,6 +940,9 @@ def api_cpu_temperature():
         else:
             opcua_error = (variables or {}).get("error", "Lecture OPC UA impossible")
             opcua_error_code = (variables or {}).get("error_code")
+            _last_opcua_status["ok"] = False
+            _last_opcua_status["error"] = opcua_error
+            _last_opcua_status["error_code"] = opcua_error_code
     except Exception as exc:
         opcua_error = str(exc)
 
@@ -1059,6 +1060,9 @@ def api_suivi_consommation():
             courant = _safe_float(data.get("energ_act_l1"), 0.0)
             puissance = _safe_float(data.get("energ_act_l2"), 0.0)
             energie = _safe_float(data.get("energ_act_tot"), 0.0)
+            _last_opcua_status["ok"] = True
+            _last_opcua_status["error"] = None
+            _last_opcua_status["error_code"] = None
             live_data = {
                 "courant": courant,
                 "puissance": puissance,
