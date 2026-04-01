@@ -5,6 +5,7 @@ import mysql.connector
 from dotenv import load_dotenv
 from flask import Flask, render_template, request, redirect, url_for, jsonify, session
 from services.opcua_status import get_opcua_status_details, get_automate_variables_details
+from services.opcua_requests import close_persistent_client
  
 load_dotenv()
  
@@ -780,6 +781,13 @@ def login():
         automate_error=automate_status["error"],
         automate_error_code=automate_status["error_code"],
     )
+
+
+@app.route("/logout", methods=["POST"])
+def logout():
+    session.clear()
+    close_persistent_client()
+    return redirect(url_for("login"))
  
 @app.route("/dashboard")
 def dashboard_op():

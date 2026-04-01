@@ -9,7 +9,7 @@
 
     <header style="background: #cffbcd; color: rgb(0, 0, 0); display: flex; align-items: center; justify-content: space-between; padding: 10px;">
         <div style="flex: 1; text-align: left;">
-            <form action="/" method="get" style="display: inline;">
+            <form action="{{ url_for('logout') }}" method="post" style="display: inline;">
                 <button type="submit" style="background: rgb(0, 0, 0); color: #fcfcfc; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer;">
                     Déconnexion
                 </button>
