@@ -211,6 +211,69 @@ def recuperer_historique_temperature(limit=60):
         cursor.close()
         conn.close()
 
+
+def get_suivi_conso_table_name(cursor):
+    cursor.execute(
+        """
+        SELECT TABLE_NAME
+        FROM information_schema.TABLES
+        WHERE TABLE_SCHEMA = DATABASE()
+          AND TABLE_NAME IN ('suivi_conso', 'Suivi_conso')
+        ORDER BY CASE WHEN TABLE_NAME = 'suivi_conso' THEN 0 ELSE 1 END
+        LIMIT 1
+        """
+    )
+    row = cursor.fetchone()
+    return row[0] if row else "suivi_conso"
+
+
+def ensure_suivi_conso_table(cursor, table_name):
+    cursor.execute(
+        f"""
+        CREATE TABLE IF NOT EXISTS `{table_name}` (
+            id_suivi INT AUTO_INCREMENT PRIMARY KEY,
+            courant FLOAT NOT NULL,
+            puissance FLOAT NOT NULL,
+            energie DECIMAL(15,2) NOT NULL,
+            id_role INT,
+            horodatage TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+        """
+    )
+
+
+def enregistrer_suivi_conso(courant, puissance, energie):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    try:
+        table_name = get_suivi_conso_table_name(cursor)
+        ensure_suivi_conso_table(cursor, table_name)
+        sql = f"INSERT INTO `{table_name}` (courant, puissance, energie) VALUES (%s, %s, %s)"
+        cursor.execute(sql, (courant, puissance, energie))
+        conn.commit()
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def recuperer_dernier_suivi_conso():
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    table_cursor = conn.cursor()
+
+    try:
+        table_name = get_suivi_conso_table_name(table_cursor)
+        ensure_suivi_conso_table(table_cursor, table_name)
+        cursor.execute(
+            f"SELECT courant, puissance, energie, horodatage FROM `{table_name}` ORDER BY horodatage DESC LIMIT 1"
+        )
+        return cursor.fetchone()
+    finally:
+        table_cursor.close()
+        cursor.close()
+        conn.close()
+
  
 AVAILABLE_ROLES = {
     "Operat": "Operateur",
@@ -909,6 +972,89 @@ def api_cpu_temperature():
         {
             "ok": False,
             "error": "Aucune donnée CPU disponible",
+            "opcua_error": opcua_error,
+            "opcua_error_code": opcua_error_code,
+        }
+    ), 404
+
+
+@app.route("/api/suivi-consommation")
+def api_suivi_consommation():
+    """Mappe les variables énergétiques OPC UA vers suivi_conso et retourne la dernière ligne."""
+    opcua_error = None
+    opcua_error_code = None
+    live_data = None
+
+    try:
+        variables = get_automate_variables_details()
+        if variables.get("ok") and variables.get("data"):
+            data = variables["data"]
+            courant = data.get("energ_act_l1", 0)
+            puissance = data.get("energ_act_l2", 0)
+            energie = data.get("energ_act_tot", 0)
+            live_data = {
+                "courant": courant,
+                "puissance": puissance,
+                "energie": energie,
+                "horodatage": datetime.utcnow().isoformat() + "Z",
+            }
+            try:
+                enregistrer_suivi_conso(courant, puissance, energie)
+            except Exception:
+                pass
+        else:
+            opcua_error = (variables or {}).get("error", "Lecture OPC UA impossible")
+            opcua_error_code = (variables or {}).get("error_code")
+    except Exception as exc:
+        opcua_error = str(exc)
+
+    try:
+        dernier = recuperer_dernier_suivi_conso()
+        if dernier:
+            return jsonify(
+                {
+                    "ok": True,
+                    "source": "database",
+                    "courant": float(dernier["courant"]),
+                    "puissance": float(dernier["puissance"]),
+                    "energie": float(dernier["energie"]),
+                    "horodatage": dernier["horodatage"].isoformat() if dernier["horodatage"] else None,
+                    "opcua_ok": opcua_error is None,
+                    "opcua_error": opcua_error,
+                    "opcua_error_code": opcua_error_code,
+                }
+            )
+    except Exception as db_exc:
+        if live_data is not None:
+            return jsonify(
+                {
+                    "ok": True,
+                    "source": "opcua_live",
+                    "courant": live_data["courant"],
+                    "puissance": live_data["puissance"],
+                    "energie": live_data["energie"],
+                    "horodatage": live_data["horodatage"],
+                    "db_error": str(db_exc),
+                }
+            )
+        return jsonify({"ok": False, "error": str(db_exc)}), 500
+
+    if live_data is not None:
+        return jsonify(
+            {
+                "ok": True,
+                "source": "opcua_live",
+                "courant": live_data["courant"],
+                "puissance": live_data["puissance"],
+                "energie": live_data["energie"],
+                "horodatage": live_data["horodatage"],
+            }
+        )
+
+    return jsonify(
+        {
+            "ok": False,
+            "error": "Aucune donnée de consommation disponible",
             "opcua_error": opcua_error,
             "opcua_error_code": opcua_error_code,
         }

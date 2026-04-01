@@ -178,6 +178,39 @@
                     color: #28a745 !important;
                 }
 
+                .conso-grid {
+                    display: grid;
+                    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+                    gap: 14px;
+                    margin-top: 12px;
+                }
+
+                .conso-card {
+                    background: #ffffff;
+                    border: 1px solid #e8ecef;
+                    border-radius: 12px;
+                    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+                    padding: 14px;
+                }
+
+                .conso-label {
+                    margin: 0 0 8px 0;
+                    color: #4b5563;
+                    font-weight: 600;
+                }
+
+                .conso-value {
+                    font-size: 1.6rem;
+                    font-weight: 700;
+                    color: #1f2937;
+                }
+
+                .conso-meta {
+                    margin-top: 10px;
+                    font-size: 0.88rem;
+                    color: #6b7280;
+                }
+
         </style>
 </head>
 <body>
@@ -244,7 +277,24 @@
         <div class="accordion-item" {% if not can_view_responsable_sections %}hidden{% endif %}>
             <button class="accordion-header">Suivi des consommations électriques</button>
             <div class="accordion-content">
-                <div class="charts">
+                <div class="conso-grid">
+                    <div class="conso-card">
+                        <p class="conso-label">Courant (EnergActL1)</p>
+                        <div id="conso-courant" class="conso-value">--</div>
+                    </div>
+                    <div class="conso-card">
+                        <p class="conso-label">Puissance (EnergActL2)</p>
+                        <div id="conso-puissance" class="conso-value">--</div>
+                    </div>
+                    <div class="conso-card">
+                        <p class="conso-label">Energie (EnergActTot)</p>
+                        <div id="conso-energie" class="conso-value">--</div>
+                    </div>
+                </div>
+                <div id="conso-updated-at" class="conso-meta">Dernière mise à jour: --</div>
+                <div id="conso-error" class="conso-meta" style="color: #dc3545;"></div>
+                <div id="conso-source" class="conso-meta"></div>
+                <div class="charts" style="display:none;">
                     <div class="chart">Graphique 1</div>
                     <div class="chart">Graphique 2</div>
                 </div>
@@ -836,6 +886,51 @@
     </script>
 
     <script>
+        function refreshSuiviConsommation() {
+            fetch('/api/suivi-consommation')
+                .then(response => response.json())
+                .then(data => {
+                    const courantElement = document.getElementById('conso-courant');
+                    const puissanceElement = document.getElementById('conso-puissance');
+                    const energieElement = document.getElementById('conso-energie');
+                    const updatedAtElement = document.getElementById('conso-updated-at');
+                    const errorElement = document.getElementById('conso-error');
+                    const sourceElement = document.getElementById('conso-source');
+
+                    if (!courantElement || !puissanceElement || !energieElement) {
+                        return;
+                    }
+
+                    if (data.ok) {
+                        const courant = parseFloat(data.courant);
+                        const puissance = parseFloat(data.puissance);
+                        const energie = parseFloat(data.energie);
+
+                        courantElement.textContent = Number.isFinite(courant) ? courant.toFixed(2) : '--';
+                        puissanceElement.textContent = Number.isFinite(puissance) ? puissance.toFixed(2) : '--';
+                        energieElement.textContent = Number.isFinite(energie) ? energie.toFixed(2) : '--';
+
+                        if (updatedAtElement) {
+                            updatedAtElement.textContent = 'Dernière mise à jour: ' + (data.horodatage || '--');
+                        }
+                        if (sourceElement) {
+                            sourceElement.textContent = 'Source: ' + (data.source || 'inconnue');
+                        }
+                        if (errorElement) {
+                            errorElement.textContent = '';
+                        }
+                    } else if (errorElement) {
+                        errorElement.textContent = data.error || 'Impossible de récupérer les consommations.';
+                    }
+                })
+                .catch(error => {
+                    const errorElement = document.getElementById('conso-error');
+                    if (errorElement) {
+                        errorElement.textContent = 'Erreur réseau: ' + error;
+                    }
+                });
+        }
+
         function refreshCpuTemperature() {
             fetch('/api/cpu-temperature')
                 .then(response => response.json())
@@ -908,8 +1003,10 @@
                 .catch(error => console.error('Erreur refresh température:', error));
         }
 
-        // Rafraîchir la température toutes les 60 secondes
+        // Rafraîchissement immédiat et périodique
+        refreshSuiviConsommation();
         refreshCpuTemperature();  // Appel immédiat au chargement
+        setInterval(refreshSuiviConsommation, 60000);
         setInterval(refreshCpuTemperature, 60000);
     </script>
 
