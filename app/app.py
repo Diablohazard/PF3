@@ -1037,7 +1037,7 @@ def api_suivi_consommation_historique():
             "error": str(e)
         }), 500
 
-
+@app.route("/api/suivi-consommation")
 def api_suivi_consommation():
     """Mappe les variables énergétiques OPC UA vers suivi_conso et retourne la dernière ligne."""
     opcua_error = None

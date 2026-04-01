@@ -915,7 +915,10 @@
         let currentConsoType = 'courant';
 
         function refreshConsoChart() {
-            fetch('/api/suivi-consommation-historique')
+            // Trigger live read + DB insert, then load the historical series for charting.
+            fetch('/api/suivi-consommation', { cache: 'no-store' })
+                .catch(() => null)
+                .then(() => fetch('/api/suivi-consommation-historique', { cache: 'no-store' }))
                 .then(response => response.json())
                 .then(data => {
                     if (!data.ok || !data.data) {
