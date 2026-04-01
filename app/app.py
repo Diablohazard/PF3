@@ -945,6 +945,10 @@ def api_cpu_temperature():
             _last_opcua_status["error_code"] = opcua_error_code
     except Exception as exc:
         opcua_error = str(exc)
+        opcua_error_code = type(exc).__name__
+        _last_opcua_status["ok"] = False
+        _last_opcua_status["error"] = opcua_error
+        _last_opcua_status["error_code"] = opcua_error_code
 
     # 2) Source principale: dernière valeur en base.
     try:
@@ -1076,8 +1080,15 @@ def api_suivi_consommation():
         else:
             opcua_error = (variables or {}).get("error", "Lecture OPC UA impossible")
             opcua_error_code = (variables or {}).get("error_code")
+            _last_opcua_status["ok"] = False
+            _last_opcua_status["error"] = opcua_error
+            _last_opcua_status["error_code"] = opcua_error_code
     except Exception as exc:
         opcua_error = str(exc)
+        opcua_error_code = type(exc).__name__
+        _last_opcua_status["ok"] = False
+        _last_opcua_status["error"] = opcua_error
+        _last_opcua_status["error_code"] = opcua_error_code
 
     try:
         dernier = recuperer_dernier_suivi_conso()

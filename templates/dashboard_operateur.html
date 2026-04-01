@@ -888,6 +888,12 @@
                 .then(data => {
                     const statusBox = document.querySelector('.automate-status');
                     if (statusBox) {
+                        if (data.ok === null || data.ok === undefined) {
+                            statusBox.className = 'automate-status automate-ko';
+                            statusBox.innerHTML = '🔴 Automate Wago : Hors Ligne<div class="automate-error">Statut OPC UA indisponible pour le moment.</div>';
+                            return;
+                        }
+
                         statusBox.className = 'automate-status ' + (data.ok ? 'automate-ok' : 'automate-ko');
                         if (data.ok) {
                             statusBox.innerHTML = '🟢 Automate Wago : En Ligne';
@@ -895,6 +901,8 @@
                             let content = '🔴 Automate Wago : Hors Ligne';
                             if (data.error) {
                                 content += `<div class="automate-error">${data.error}</div>`;
+                            } else {
+                                content += '<div class="automate-error">Aucun détail d\'erreur disponible (timeout ou session non active).</div>';
                             }
                             if (data.error_code) {
                                 content += `<div class="automate-error-code">Code erreur : ${data.error_code}</div>`;
