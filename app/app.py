@@ -274,6 +274,26 @@ def recuperer_dernier_suivi_conso():
         cursor.close()
         conn.close()
 
+
+def recuperer_historique_suivi_conso(limit=60):
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    table_cursor = conn.cursor()
+
+    try:
+        table_name = get_suivi_conso_table_name(table_cursor)
+        ensure_suivi_conso_table(table_cursor, table_name)
+        cursor.execute(
+            f"SELECT courant, puissance, energie, horodatage FROM `{table_name}` ORDER BY horodatage ASC LIMIT %s",
+            (limit,)
+        )
+        return cursor.fetchall()
+    finally:
+        table_cursor.close()
+        cursor.close()
+        conn.close()
+
+
  
 AVAILABLE_ROLES = {
     "Operat": "Operateur",
@@ -978,7 +998,38 @@ def api_cpu_temperature():
     ), 404
 
 
-@app.route("/api/suivi-consommation")
+@app.route("/api/suivi-consommation-historique")
+def api_suivi_consommation_historique():
+    """Retourne l'historique des données de consommation (derniers 60 enregistrements)."""
+    try:
+        historique = recuperer_historique_suivi_conso(limit=60)
+        if not historique:
+            return jsonify({
+                "ok": False,
+                "message": "Aucune donnée d'historique disponible"
+            }), 404
+        
+        result = [
+            {
+                "courant": float(row["courant"]),
+                "puissance": float(row["puissance"]),
+                "energie": float(row["energie"]),
+                "horodatage": row["horodatage"].isoformat() if row["horodatage"] else None,
+            }
+            for row in historique
+        ]
+        return jsonify({
+            "ok": True,
+            "data": result,
+            "count": len(result)
+        })
+    except Exception as e:
+        return jsonify({
+            "ok": False,
+            "error": str(e)
+        }), 500
+
+
 def api_suivi_consommation():
     """Mappe les variables énergétiques OPC UA vers suivi_conso et retourne la dernière ligne."""
     opcua_error = None

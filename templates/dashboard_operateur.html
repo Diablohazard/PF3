@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <title>Dashboard</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
     <style>
         .automate-status {
             position: relative;
@@ -211,6 +212,35 @@
                     color: #6b7280;
                 }
 
+                .conso-btn {
+                    padding: 12px 16px;
+                    border: 2px solid #d1d5db;
+                    background: #ffffff;
+                    color: #1f2937;
+                    font-weight: 600;
+                    border-radius: 8px;
+                    cursor: pointer;
+                    transition: all 0.3s ease;
+                    font-size: 0.95rem;
+                }
+
+                .conso-btn:hover {
+                    border-color: #3b82f6;
+                    background: #f0f4f8;
+                }
+
+                .conso-btn-active {
+                    background: #3b82f6;
+                    color: #ffffff;
+                    border-color: #3b82f6;
+                }
+
+                .conso-btn-active:hover {
+                    background: #2563eb;
+                    border-color: #2563eb;
+                }
+
+
         </style>
 </head>
 <body>
@@ -277,27 +307,22 @@
         <div class="accordion-item" {% if not can_view_responsable_sections %}hidden{% endif %}>
             <button class="accordion-header">Suivi des consommations électriques</button>
             <div class="accordion-content">
-                <div class="conso-grid">
-                    <div class="conso-card">
-                        <p class="conso-label">Courant (EnergActL1)</p>
-                        <div id="conso-courant" class="conso-value">--</div>
-                    </div>
-                    <div class="conso-card">
-                        <p class="conso-label">Puissance (EnergActL2)</p>
-                        <div id="conso-puissance" class="conso-value">--</div>
-                    </div>
-                    <div class="conso-card">
-                        <p class="conso-label">Energie (EnergActTot)</p>
-                        <div id="conso-energie" class="conso-value">--</div>
-                    </div>
+                <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 20px;">
+                    <button id="btn-l1" class="conso-btn conso-btn-active" data-type="courant">
+                        Energie Active L1
+                    </button>
+                    <button id="btn-l2" class="conso-btn" data-type="puissance">
+                        Energie Active L2
+                    </button>
+                    <button id="btn-tot" class="conso-btn" data-type="energie">
+                        Energie Active Totale
+                    </button>
                 </div>
-                <div id="conso-updated-at" class="conso-meta">Dernière mise à jour: --</div>
-                <div id="conso-error" class="conso-meta" style="color: #dc3545;"></div>
-                <div id="conso-source" class="conso-meta"></div>
-                <div class="charts" style="display:none;">
-                    <div class="chart">Graphique 1</div>
-                    <div class="chart">Graphique 2</div>
+                <div id="conso-chart-container" style="position: relative; width: 100%; height: 350px; margin-top: 15px;">
+                    <canvas id="consoChart"></canvas>
                 </div>
+                <div id="conso-error" class="conso-meta" style="color: #dc3545; margin-top: 10px;"></div>
+                <div id="conso-source" class="conso-meta" style="margin-top: 5px;"></div>
             </div>
         </div>
 
@@ -886,51 +911,124 @@
     </script>
 
     <script>
-        function refreshSuiviConsommation() {
-            fetch('/api/suivi-consommation')
+        let consoChart = null;
+        let currentConsoType = 'courant';
+
+        function refreshConsoChart() {
+            fetch('/api/suivi-consommation-historique')
                 .then(response => response.json())
                 .then(data => {
-                    const courantElement = document.getElementById('conso-courant');
-                    const puissanceElement = document.getElementById('conso-puissance');
-                    const energieElement = document.getElementById('conso-energie');
-                    const updatedAtElement = document.getElementById('conso-updated-at');
-                    const errorElement = document.getElementById('conso-error');
-                    const sourceElement = document.getElementById('conso-source');
-
-                    if (!courantElement || !puissanceElement || !energieElement) {
+                    if (!data.ok || !data.data) {
+                        const errorEl = document.getElementById('conso-error');
+                        if (errorEl) {
+                            errorEl.textContent = data.message || 'Erreur lors de la récupération des données.';
+                        }
                         return;
                     }
 
-                    if (data.ok) {
-                        const courant = parseFloat(data.courant);
-                        const puissance = parseFloat(data.puissance);
-                        const energie = parseFloat(data.energie);
+                    const labels = data.data.map(item => {
+                        const date = new Date(item.horodatage);
+                        return date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+                    });
 
-                        courantElement.textContent = Number.isFinite(courant) ? courant.toFixed(2) + ' kWh' : '--';
-                        puissanceElement.textContent = Number.isFinite(puissance) ? puissance.toFixed(2) + ' kWh' : '--';
-                        energieElement.textContent = Number.isFinite(energie) ? energie.toFixed(2) + ' kWh' : '--';
+                    const values = data.data.map(item => {
+                        if (currentConsoType === 'courant') return parseFloat(item.courant);
+                        if (currentConsoType === 'puissance') return parseFloat(item.puissance);
+                        if (currentConsoType === 'energie') return parseFloat(item.energie);
+                        return 0;
+                    });
 
-                        if (updatedAtElement) {
-                            updatedAtElement.textContent = 'Dernière mise à jour: ' + (data.horodatage || '--');
-                        }
-                        if (sourceElement) {
-                            sourceElement.textContent = 'Source: ' + (data.source || 'inconnue');
-                        }
-                        if (errorElement) {
-                            errorElement.textContent = '';
-                        }
-                    } else if (errorElement) {
-                        errorElement.textContent = data.error || 'Impossible de récupérer les consommations.';
+                    const canvas = document.getElementById('consoChart');
+                    if (!canvas) return;
+
+                    const ctx = canvas.getContext('2d');
+
+                    if (consoChart) {
+                        consoChart.destroy();
                     }
+
+                    consoChart = new Chart(ctx, {
+                        type: 'line',
+                        data: {
+                            labels: labels,
+                            datasets: [{
+                                label: currentConsoType === 'courant' ? 'Energie Active L1 (kWh)' :
+                                       currentConsoType === 'puissance' ? 'Energie Active L2 (kWh)' :
+                                       'Energie Active Totale (kWh)',
+                                data: values,
+                                borderColor: '#3b82f6',
+                                backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                                borderWidth: 2,
+                                fill: true,
+                                tension: 0.3,
+                                pointRadius: 4,
+                                pointBackgroundColor: '#3b82f6',
+                                pointBorderColor: '#ffffff',
+                                pointBorderWidth: 2
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                                legend: {
+                                    display: true,
+                                    position: 'top'
+                                }
+                            },
+                            scales: {
+                                y: {
+                                    beginAtZero: true,
+                                    title: {
+                                        display: true,
+                                        text: 'Consommation (kWh)'
+                                    }
+                                }
+                            }
+                        }
+                    });
+
+                    const sourceEl = document.getElementById('conso-source');
+                    const errorEl = document.getElementById('conso-error');
+                    if (sourceEl) sourceEl.textContent = 'Source: base de données';
+                    if (errorEl) errorEl.textContent = '';
                 })
                 .catch(error => {
-                    const errorElement = document.getElementById('conso-error');
-                    if (errorElement) {
-                        errorElement.textContent = 'Erreur réseau: ' + error;
+                    const errorEl = document.getElementById('conso-error');
+                    if (errorEl) {
+                        errorEl.textContent = 'Erreur réseau: ' + error;
                     }
                 });
         }
 
+        function setupConsoButtons() {
+            const btnL1 = document.getElementById('btn-l1');
+            const btnL2 = document.getElementById('btn-l2');
+            const btnTot = document.getElementById('btn-tot');
+
+            if (!btnL1 || !btnL2 || !btnTot) return;
+
+            [btnL1, btnL2, btnTot].forEach(btn => {
+                btn.addEventListener('click', function() {
+                    currentConsoType = this.dataset.type;
+
+                    [btnL1, btnL2, btnTot].forEach(b => b.classList.remove('conso-btn-active'));
+                    this.classList.add('conso-btn-active');
+
+                    refreshConsoChart();
+                });
+            });
+        }
+
+        // Initialisation au chargement
+        setupConsoButtons();
+        refreshConsoChart();
+
+        // Rafraîchissement toutes les 30 secondes
+        setInterval(refreshConsoChart, 30000);
+    </script>
+
+    <script>
         function refreshCpuTemperature() {
             fetch('/api/cpu-temperature')
                 .then(response => response.json())
@@ -1003,10 +1101,8 @@
                 .catch(error => console.error('Erreur refresh température:', error));
         }
 
-        // Rafraîchissement immédiat et périodique
-        refreshSuiviConsommation();
-        refreshCpuTemperature();  // Appel immédiat au chargement
-        setInterval(refreshSuiviConsommation, 60000);
+        // Rafraîchir la température toutes les 60 secondes
+        refreshCpuTemperature();
         setInterval(refreshCpuTemperature, 60000);
     </script>
 
