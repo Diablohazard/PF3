@@ -160,11 +160,24 @@ def ensure_cpu_data_table(cursor, table_name):
             ram FLOAT NOT NULL,
             temperature FLOAT NOT NULL,
             alerte VARCHAR(50),
+            seuil_charge FLOAT NOT NULL,
+            seuil_ram FLOAT NOT NULL,
+            seuil_temperature FLOAT NOT NULL,
             id_role INT,
             horodatage TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
         """
     )
+
+    # Migration douce: ajouter les colonnes de seuil si la table existe déjà.
+    cursor.execute(f"SHOW COLUMNS FROM `{table_name}`")
+    existing_columns = {row[0].lower() for row in cursor.fetchall()}
+    if "seuil_charge" not in existing_columns:
+        cursor.execute(f"ALTER TABLE `{table_name}` ADD COLUMN seuil_charge FLOAT NULL")
+    if "seuil_ram" not in existing_columns:
+        cursor.execute(f"ALTER TABLE `{table_name}` ADD COLUMN seuil_ram FLOAT NULL")
+    if "seuil_temperature" not in existing_columns:
+        cursor.execute(f"ALTER TABLE `{table_name}` ADD COLUMN seuil_temperature FLOAT NULL")
 
 
 def enregistrer_temperature(charge, ram, temperature, alerte=None):
@@ -191,7 +204,10 @@ def recuperer_derniere_temperature():
         table_name = get_cpu_data_table_name(table_cursor)
         ensure_cpu_data_table(table_cursor, table_name)
         cursor.execute(
-            f"SELECT charge, ram, temperature, alerte, horodatage FROM `{table_name}` ORDER BY horodatage DESC LIMIT 1"
+            f"SELECT charge, ram, temperature, alerte, horodatage "
+            f"FROM `{table_name}` "
+            f"WHERE COALESCE(alerte, '') <> 'SEUILS' "
+            f"ORDER BY horodatage DESC LIMIT 1"
         )
         return cursor.fetchone()
     finally:
@@ -209,7 +225,10 @@ def recuperer_historique_temperature(limit=60):
         table_name = get_cpu_data_table_name(table_cursor)
         ensure_cpu_data_table(table_cursor, table_name)
         cursor.execute(
-            f"SELECT charge, ram, temperature, alerte, horodatage FROM `{table_name}` ORDER BY horodatage DESC LIMIT %s",
+            f"SELECT charge, ram, temperature, alerte, horodatage "
+            f"FROM `{table_name}` "
+            f"WHERE COALESCE(alerte, '') <> 'SEUILS' "
+            f"ORDER BY horodatage DESC LIMIT %s",
             (limit,)
         )
         return cursor.fetchall()
@@ -226,8 +245,24 @@ def enregistrer_seuils_alerte(charge, ram, temperature):
     try:
         table_name = get_cpu_data_table_name(cursor)
         ensure_cpu_data_table(cursor, table_name)
-        sql = f"INSERT INTO `{table_name}` (charge, ram, temperature, alerte) VALUES (%s, %s, %s, %s)"
-        cursor.execute(sql, (float(charge), float(ram), float(temperature), "SEUILS"))
+        # Les seuils sont stockés dans les colonnes dédiées, avec un marqueur alerte='SEUILS'.
+        sql = (
+            f"INSERT INTO `{table_name}` "
+            f"(charge, ram, temperature, alerte, seuil_charge, seuil_ram, seuil_temperature) "
+            f"VALUES (%s, %s, %s, %s, %s, %s, %s)"
+        )
+        cursor.execute(
+            sql,
+            (
+                0.0,
+                0.0,
+                0.0,
+                "SEUILS",
+                float(charge),
+                float(ram),
+                float(temperature),
+            ),
+        )
         conn.commit()
     finally:
         cursor.close()
@@ -243,7 +278,7 @@ def recuperer_derniers_seuils_alerte():
         table_name = get_cpu_data_table_name(table_cursor)
         ensure_cpu_data_table(table_cursor, table_name)
         cursor.execute(
-            f"SELECT charge, ram, temperature, horodatage FROM `{table_name}` "
+            f"SELECT seuil_charge, seuil_ram, seuil_temperature, charge, ram, temperature, horodatage FROM `{table_name}` "
             "WHERE alerte = 'SEUILS' ORDER BY horodatage DESC LIMIT 1"
         )
         return cursor.fetchone()
@@ -1014,6 +1049,20 @@ def _get_cached_automate_variables(force_refresh=False):
     return result, True  # (données, was_refreshed=True)
 
 
+def _build_alert_statuses(seuils, automate_values):
+    """Construit le statut d'alerte à partir des valeurs live de l'automate."""
+    def _status(current_value, threshold_value):
+        if current_value is None or threshold_value is None:
+            return "Inconnu"
+        return "Déclenchée" if float(current_value) >= float(threshold_value) else "Normale"
+
+    return {
+        "seuil_cpu": _status(automate_values.get("cpu_load"), seuils.get("seuil_cpu")),
+        "seuil_ram": _status(automate_values.get("ram_usage"), seuils.get("seuil_ram")),
+        "seuil_temp": _status(automate_values.get("temp_c"), seuils.get("seuil_temp")),
+    }
+
+
 # ============================================================================
 @app.route("/api/automate-status")
 def api_automate_status():
@@ -1035,6 +1084,8 @@ def api_get_alert_thresholds():
             "seuil_ram": float(values.get("seuil_ram", 0)),
             "seuil_temp": float(values.get("seuil_temp", 0)),
         }
+        automate_values, _ = _get_cached_automate_variables()
+        statuses = _build_alert_statuses(payload, (automate_values or {}).get("data") or {})
         _last_opcua_status["ok"] = True
         _last_opcua_status["error"] = None
         _last_opcua_status["error_code"] = None
@@ -1047,19 +1098,23 @@ def api_get_alert_thresholds():
             )
         except Exception:
             pass
-        return jsonify({"ok": True, "data": payload, "source": "opcua"})
+        return jsonify({"ok": True, "data": payload, "statuses": statuses, "source": "opcua"})
 
     # Fallback: dernières valeurs connues en base si l'OPC UA est indisponible.
     db_values = recuperer_derniers_seuils_alerte()
     if db_values:
+        payload = {
+            "seuil_cpu": float(db_values["seuil_charge"] if db_values["seuil_charge"] is not None else db_values["charge"]),
+            "seuil_ram": float(db_values["seuil_ram"] if db_values["seuil_ram"] is not None else db_values["ram"]),
+            "seuil_temp": float(db_values["seuil_temperature"] if db_values["seuil_temperature"] is not None else db_values["temperature"]),
+        }
+        automate_values, _ = _get_cached_automate_variables()
+        statuses = _build_alert_statuses(payload, (automate_values or {}).get("data") or {})
         return jsonify(
             {
                 "ok": True,
-                "data": {
-                    "seuil_cpu": float(db_values["charge"]),
-                    "seuil_ram": float(db_values["ram"]),
-                    "seuil_temp": float(db_values["temperature"]),
-                },
+                "data": payload,
+                "statuses": statuses,
                 "source": "database",
                 "opcua_error": opcua_result.get("error"),
                 "opcua_error_code": opcua_result.get("error_code"),

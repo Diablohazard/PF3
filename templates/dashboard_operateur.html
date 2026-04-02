@@ -427,7 +427,7 @@
                                     <input id="seuil_cpu_input" type="number" step="0.1" min="0" style="width: 120px; padding: 6px;" />
                                     <span> %</span>
                                 </td>
-                                <td style="padding: 12px;">Editable</td>
+                                <td id="seuil_cpu_status" style="padding: 12px;">--</td>
                             </tr>
                             <tr style="border-bottom: 1px solid #eee;">
                                 <td style="padding: 12px;">Usage RAM élevé</td>
@@ -435,7 +435,7 @@
                                     <input id="seuil_ram_input" type="number" step="0.1" min="0" style="width: 120px; padding: 6px;" />
                                     <span> %</span>
                                 </td>
-                                <td style="padding: 12px;">Editable</td>
+                                <td id="seuil_ram_status" style="padding: 12px;">--</td>
                             </tr>
                             <tr style="border-bottom: 1px solid #eee;">
                                 <td style="padding: 12px;">Température élevée</td>
@@ -443,7 +443,7 @@
                                     <input id="seuil_temp_input" type="number" step="0.1" min="0" style="width: 120px; padding: 6px;" />
                                     <span> °C</span>
                                 </td>
-                                <td style="padding: 12px;">Editable</td>
+                                <td id="seuil_temp_status" style="padding: 12px;">--</td>
                             </tr>
                         </tbody>
                     </table>
@@ -627,6 +627,9 @@
         const seuilCpuInput = document.getElementById('seuil_cpu_input');
         const seuilRamInput = document.getElementById('seuil_ram_input');
         const seuilTempInput = document.getElementById('seuil_temp_input');
+        const seuilCpuStatus = document.getElementById('seuil_cpu_status');
+        const seuilRamStatus = document.getElementById('seuil_ram_status');
+        const seuilTempStatus = document.getElementById('seuil_temp_status');
         const saveThresholdsBtn = document.getElementById('save_thresholds_btn');
         const thresholdsMessage = document.getElementById('thresholds_message');
 
@@ -650,9 +653,13 @@
                 })
                 .then(data => {
                     const values = data.data || {};
+                    const statuses = data.statuses || {};
                     seuilCpuInput.value = Number(values.seuil_cpu ?? 0).toFixed(1);
                     seuilRamInput.value = Number(values.seuil_ram ?? 0).toFixed(1);
                     seuilTempInput.value = Number(values.seuil_temp ?? 0).toFixed(1);
+                    if (seuilCpuStatus) seuilCpuStatus.textContent = statuses.seuil_cpu || '--';
+                    if (seuilRamStatus) seuilRamStatus.textContent = statuses.seuil_ram || '--';
+                    if (seuilTempStatus) seuilTempStatus.textContent = statuses.seuil_temp || '--';
                     setThresholdMessage(`Seuils chargés (${data.source || 'n/a'}).`, '#047857');
                 })
                 .catch(error => {
