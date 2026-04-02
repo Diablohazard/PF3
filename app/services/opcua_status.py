@@ -8,12 +8,14 @@ try:
         read_automate_variables_sync,
         read_node_value_sync,
         server_accepts_anonymous,
+        server_supports_sign_and_encrypt,
     )
 except ImportError:
     from app.services.opcua_requests import (
         read_automate_variables_sync,
         read_node_value_sync,
         server_accepts_anonymous,
+        server_supports_sign_and_encrypt,
     )
 
 
@@ -57,10 +59,16 @@ def _get_opcua_config():
         "username": (os.getenv("OPCUA_USERNAME") or "").strip(),
         "password": (os.getenv("OPCUA_PASSWORD") or "").strip(),
         "timeout": timeout,
+        "security_config": {
+            "mode": (os.getenv("OPCUA_SECURITY_MODE", "None") or "None").strip(),
+            "client_cert": (os.getenv("OPCUA_CLIENT_CERT") or "").strip(),
+            "client_key": (os.getenv("OPCUA_CLIENT_KEY") or "").strip(),
+            "server_cert": (os.getenv("OPCUA_SERVER_CERT") or "").strip(),
+        },
     }
 
 
-def _check_connection(url, username, password, timeout):
+def _check_connection(url, username, password, timeout, security_config=None):
     try:
         valeur = read_node_value_sync(
             url=url,
@@ -68,6 +76,7 @@ def _check_connection(url, username, password, timeout):
             password=password,
             node_id=SERVER_STATUS_NODE_ID,
             timeout=timeout,
+            security_config=security_config,
         )
         print(f"Etat serveur OPCUA : {valeur}")
         return _build_status(True)
@@ -81,21 +90,29 @@ def _check_connection(url, username, password, timeout):
 def get_opcua_status_details():
     config = _get_opcua_config()
 
+    security_mode = (config.get("security_config") or {}).get("mode", "None")
+
     # If credentials are provided, test authenticated connectivity directly.
     # This avoids false negatives when GetEndpoints is slow/unavailable.
-    if config["username"]:
-        return _check_connection(
-            config["url"],
-            config["username"],
-            config["password"],
-            config["timeout"],
-        )
-
     try:
         anonymous_allowed = server_accepts_anonymous(
             config["url"],
             timeout=config["timeout"],
         )
+
+        if security_mode == "SignAndEncrypt":
+            secure_endpoint_available = server_supports_sign_and_encrypt(
+                config["url"],
+                timeout=config["timeout"],
+            )
+            if not secure_endpoint_available:
+                error_message = (
+                    "Connexion OPC UA refusee: aucun endpoint serveur compatible "
+                    "avec Basic256Sha256 + SignAndEncrypt."
+                )
+                print(error_message)
+                return _build_status(False, error_message, "SecureEndpointUnavailable")
+
     except Exception as exc:
         error_message = f"Erreur lors de la lecture des endpoints OPC UA: {exc}"
         print(error_message)
@@ -114,6 +131,7 @@ def get_opcua_status_details():
         config["username"],
         config["password"],
         config["timeout"],
+        config.get("security_config"),
     )
 
 
@@ -129,6 +147,7 @@ def get_automate_variables_details():
             username=config["username"],
             password=config["password"],
             timeout=config["timeout"],
+            security_config=config.get("security_config"),
         )
         return {
             "ok": True,
