@@ -1,15 +1,26 @@
 #!/bin/bash
 
 # Script de setup des certificats OPC UA SignAndEncrypt
-# Usage: ./setup_opcua_certs.sh [OPCUA_SERVER_URL]
+# Usage: ./setup_opcua_certs.sh [OPCUA_SERVER_URL] [--force]
 
 OPCUA_SERVER="${1:-172.30.30.10:4840}"
+FORCE_REGEN=0
+
+if [ "$2" = "--force" ] || [ "$1" = "--force" ]; then
+    FORCE_REGEN=1
+    OPCUA_SERVER="172.30.30.10:4840"
+fi
+
+if [ "$2" = "--force" ] && [ -n "$1" ] && [ "$1" != "--force" ]; then
+    OPCUA_SERVER="$1"
+fi
 OPCUA_HOST=$(echo "$OPCUA_SERVER" | cut -d: -f1)
 CERTS_DIR="app/certs"
 
 echo "=== Setup certificats OPC UA SignAndEncrypt ==="
 echo "Serveur OPC UA: $OPCUA_SERVER"
 echo "Répertoire certs: $CERTS_DIR"
+echo "Regeneration forcée: $FORCE_REGEN"
 
 # Créer le répertoire certs s'il n'existe pas
 mkdir -p "$CERTS_DIR"
@@ -71,7 +82,27 @@ fi
 echo ""
 echo "[3/3] Génération du certificat client..."
 
-if [ ! -f "client_cert.der" ]; then
+if [ "$FORCE_REGEN" -eq 1 ] || [ ! -f "client_cert.der" ]; then
+    if [ "$FORCE_REGEN" -eq 1 ]; then
+        rm -f client_cert.der
+    fi
+
+    # Les serveurs OPC UA rejettent souvent les certs v1 sans extensions.
+    # On génère ici un cert X.509 v3 avec SAN URI et usages adaptés au client OPC UA.
+    cat > client_cert_ext.cnf <<'EOF'
+[v3_req]
+basicConstraints=CA:FALSE
+keyUsage=digitalSignature,nonRepudiation,keyEncipherment,dataEncipherment
+extendedKeyUsage=clientAuth
+subjectKeyIdentifier=hash
+authorityKeyIdentifier=keyid,issuer
+subjectAltName=@alt_names
+
+[alt_names]
+URI.1=urn:freeopcua:client
+DNS.1=opcua-client
+EOF
+
     # Générer un CSR
     openssl req -new \
         -key client_key.pem \
@@ -82,13 +113,22 @@ if [ ! -f "client_cert.der" ]; then
     openssl x509 -req -days 3650 \
         -in client.csr \
         -signkey client_key.pem \
+        -sha256 \
+        -extfile client_cert_ext.cnf \
+        -extensions v3_req \
         -out client_cert.der \
         -outform DER 2>/dev/null
     
-    rm -f client.csr
+    rm -f client.csr client_cert_ext.cnf
     echo "✓ Certificat client généré: client_cert.der"
 else
     echo "✓ Certificat client existant: client_cert.der"
+fi
+
+if openssl x509 -inform DER -in client_cert.der -text -noout | grep -q "X509v3 Subject Alternative Name"; then
+    echo "✓ Certificat client X.509 v3 détecté (SAN présent)"
+else
+    echo "⚠ Certificat client sans extension SAN (risque de rejet BadSecurityChecksFailed)"
 fi
 
 # ============================================================================
@@ -99,7 +139,7 @@ cd - > /dev/null
 echo ""
 echo "=== Résumé ===" 
 echo "Fichiers créés:"
-ls -lh "$CERTS_DIR"/"*.der" "$CERTS_DIR"/"*.pem" 2>/dev/null || echo "Aucun fichier trouvé"
+ls -lh "$CERTS_DIR"/*.der "$CERTS_DIR"/*.pem 2>/dev/null || echo "Aucun fichier trouvé"
 
 echo ""
 echo "Configuration .env requise:"
