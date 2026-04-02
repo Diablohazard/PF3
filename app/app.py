@@ -785,6 +785,18 @@ def login():
         else:
             error = "Identifiants incorrects"
  
+    # Rafraîchir immédiatement le statut OPC UA (au lieu de relire juste le cache statique)
+    # Cela évite que le badge reste "Hors Ligne" longtemps après l'affichage de la page
+    try:
+        status = get_opcua_status_details()
+        _last_opcua_status["ok"] = status.get("ok")
+        _last_opcua_status["error"] = status.get("error")
+        _last_opcua_status["error_code"] = status.get("error_code")
+    except Exception as exc:
+        _last_opcua_status["ok"] = False
+        _last_opcua_status["error"] = str(exc)
+        _last_opcua_status["error_code"] = type(exc).__name__
+
     return render_template(
         "login.html",
         error=error,
@@ -805,6 +817,18 @@ def dashboard_op():
     if not session.get("logged_in"):
         return redirect(url_for("login"))
     interventions = recuperer_interventions()
+    
+    # Rafraîchir immédiatement le statut OPC UA au sens lié (évite un badge "Hors Ligne" statique)
+    try:
+        status = get_opcua_status_details()
+        _last_opcua_status["ok"] = status.get("ok")
+        _last_opcua_status["error"] = status.get("error")
+        _last_opcua_status["error_code"] = status.get("error_code")
+    except Exception as exc:
+        _last_opcua_status["ok"] = False
+        _last_opcua_status["error"] = str(exc)
+        _last_opcua_status["error_code"] = type(exc).__name__
+    
     return render_template(
         "dashboard_operateur.html",
         interventions=interventions,
