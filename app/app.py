@@ -1,4 +1,5 @@
 import os
+import time
 from datetime import datetime
  
 import mysql.connector
@@ -914,6 +915,43 @@ def get_interventions_json():
 _last_opcua_status = {"ok": None, "error": None, "error_code": None}
 
 
+# ============================================================================
+# CACHE OPC UA CÔTÉ SERVEUR — Réduit les appels répétés à l'automate
+# ============================================================================
+# TTL en secondes pour le cache OPC UA (défaut: 5s).
+# Augmente si tu veux moins de requêtes OPC UA mais acceptes des données plus "vieilles".
+OPCUA_CACHE_TTL = 10
+
+_opcua_variables_cache = {
+    "data": None,
+    "timestamp": 0,
+}
+
+
+def _get_cached_automate_variables(force_refresh=False):
+    """
+    Retourne les variables OPC UA depuis le cache si encore valide (< TTL),
+    sinon refait une requête OPC UA et met à jour le cache.
+    Réduit drastiquement les temps de chargement des graphiques.
+    """
+    global _opcua_variables_cache
+    
+    now = time.time()
+    age = now - _opcua_variables_cache["timestamp"]
+    
+    # Si cache valide et pas de force_refresh, retourner le cache
+    if not force_refresh and age < OPCUA_CACHE_TTL and _opcua_variables_cache["data"] is not None:
+        return _opcua_variables_cache["data"], False  # (données, was_refreshed)
+    
+    # Sinon, refaire la requête OPC UA
+    result = get_automate_variables_details()
+    _opcua_variables_cache["data"] = result
+    _opcua_variables_cache["timestamp"] = now
+    
+    return result, True  # (données, was_refreshed=True)
+
+
+# ============================================================================
 @app.route("/api/automate-status")
 def api_automate_status():
     """Retourne le dernier statut OPC UA connu sans déclencher de connexion supplémentaire."""
@@ -928,8 +966,9 @@ def api_cpu_temperature():
     live_data = None
 
     # 1) Tenter une lecture OPC UA pour enrichir la base, sans bloquer l'affichage.
+    # OPTIMISATION: utiliser le cache OPC UA côté serveur au lieu de refaire une requête à chaque fois.
     try:
-        variables = get_automate_variables_details()
+        variables, was_refreshed = _get_cached_automate_variables()
         if variables.get("ok") and variables.get("data"):
             data = variables["data"]
             charge = data.get("cpu_load", 0)
@@ -944,11 +983,14 @@ def api_cpu_temperature():
             _last_opcua_status["ok"] = True
             _last_opcua_status["error"] = None
             _last_opcua_status["error_code"] = None
-            try:
-                enregistrer_temperature(charge, ram, temp)
-            except Exception:
-                # Si l'insertion échoue, on continue quand meme avec la lecture DB/fallback live.
-                pass
+            # Enregistrer en base que si on vient de refaire la requête OPC UA
+            # (évite d'écrire en DB à chaque requête web)
+            if was_refreshed:
+                try:
+                    enregistrer_temperature(charge, ram, temp)
+                except Exception:
+                    # Si l'insertion échoue, on continue quand meme avec la lecture DB/fallback live.
+                    pass
         else:
             opcua_error = (variables or {}).get("error", "Lecture OPC UA impossible")
             opcua_error_code = (variables or {}).get("error_code")
@@ -1070,7 +1112,8 @@ def api_suivi_consommation():
             return default
 
     try:
-        variables = get_automate_variables_details()
+        # OPTIMISATION: utiliser le cache OPC UA côté serveur
+        variables, was_refreshed = _get_cached_automate_variables()
         if variables.get("ok") and variables.get("data"):
             data = variables["data"]
             courant = _safe_float(data.get("energ_act_l1"), 0.0)
@@ -1085,10 +1128,12 @@ def api_suivi_consommation():
                 "energie": energie,
                 "horodatage": datetime.utcnow().isoformat() + "Z",
             }
-            try:
-                enregistrer_suivi_conso(courant, puissance, energie)
-            except Exception:
-                pass
+            # Enregistrer en base que si on vient de refaire la requête OPC UA
+            if was_refreshed:
+                try:
+                    enregistrer_suivi_conso(courant, puissance, energie)
+                except Exception:
+                    pass
         else:
             opcua_error = (variables or {}).get("error", "Lecture OPC UA impossible")
             opcua_error_code = (variables or {}).get("error_code")
