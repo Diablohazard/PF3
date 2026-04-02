@@ -36,6 +36,44 @@ _persistent_client_config = None
 _persistent_client_lock = threading.Lock()
 
 
+def _fetch_server_certificate(url, timeout=10):
+    """
+    Récupère automatiquement le certificat serveur via GetEndpoints (standard OPC UA).
+    Le serveur envoie son certificat DER dans chaque descripteur d'endpoint sécurisé,
+    sans authentification requise.
+    Retourne le chemin du fichier enregistré, ou None si échec.
+    """
+    try:
+        endpoints = fetch_server_endpoints(url, timeout=timeout)
+    except Exception as exc:
+        print(f"⚠ Impossible de contacter le serveur pour récupérer le cert: {exc}")
+        return None
+
+    server_cert_bytes = None
+    for endpoint in endpoints:
+        cert = getattr(endpoint, "ServerCertificate", None)
+        if cert and len(cert) > 0:
+            server_cert_bytes = bytes(cert)
+            break
+
+    if not server_cert_bytes:
+        print("⚠ Le serveur n'a pas fourni de certificat dans ses endpoints.")
+        return None
+
+    certs_dir = os.path.join(os.path.dirname(__file__), "..", "certs")
+    os.makedirs(certs_dir, exist_ok=True)
+    cert_path = os.path.normpath(os.path.join(certs_dir, "server_cert.der"))
+
+    try:
+        with open(cert_path, "wb") as f:
+            f.write(server_cert_bytes)
+        print(f"✓ Certificat serveur capturé automatiquement: {cert_path}")
+        return cert_path
+    except Exception as exc:
+        print(f"⚠ Impossible d'écrire le certificat serveur: {exc}")
+        return None
+
+
 def _validate_security_config(security_config):
     if not security_config:
         return
@@ -47,7 +85,7 @@ def _validate_security_config(security_config):
     if mode != "SignAndEncrypt":
         raise ValueError(f"Mode de securite OPC UA non supporte: {mode}")
 
-    required_fields = ("client_cert", "client_key", "server_cert")
+    required_fields = ("client_cert", "client_key")
     missing = [field for field in required_fields if not (security_config.get(field) or "").strip()]
     if missing:
         raise ValueError(
@@ -71,11 +109,25 @@ def _create_sync_client(url, username, password, timeout, security_config=None):
         client.set_password(password)
 
     if (security_config or {}).get("mode") == "SignAndEncrypt":
+        server_cert = (security_config.get("server_cert") or "").strip()
+
+        # Si le cert serveur est absent, le capturer automatiquement via GetEndpoints
+        if not server_cert or not os.path.isfile(server_cert):
+            print("ⓘ Certificat serveur manquant, tentative de capture automatique...")
+            captured = _fetch_server_certificate(url, timeout)
+            if captured:
+                server_cert = captured
+            else:
+                raise FileNotFoundError(
+                    "Certificat serveur OPC UA introuvable et capture automatique échouée. "
+                    f"Placez manuellement le certificat dans {security_config.get('server_cert', 'app/certs/server_cert.der')}"
+                )
+
         client.set_security(
             ua.SecurityPolicyBasic256Sha256,
             security_config["client_cert"],
             security_config["client_key"],
-            security_config["server_cert"],
+            server_cert,
             ua.MessageSecurityMode.SignAndEncrypt,
         )
 
