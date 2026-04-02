@@ -4,6 +4,7 @@ import threading
 
 from opcua import Client as SyncClient
 from opcua import ua
+from opcua.crypto import security_policies
 
 try:
     from connections.opcua import fetch_server_endpoints
@@ -34,6 +35,10 @@ AUTOMATE_NODE_IDS = {
 _persistent_client = None
 _persistent_client_config = None
 _persistent_client_lock = threading.Lock()
+
+# python-opcua exposes security policy classes under opcua.crypto.security_policies
+# (not under opcua.ua in recent versions).
+SECURITY_POLICY_BASIC256SHA256 = security_policies.SecurityPolicyBasic256Sha256
 
 
 def _fetch_server_certificate(url, timeout=10):
@@ -124,7 +129,7 @@ def _create_sync_client(url, username, password, timeout, security_config=None):
                 )
 
         client.set_security(
-            ua.SecurityPolicyBasic256Sha256,
+            SECURITY_POLICY_BASIC256SHA256,
             security_config["client_cert"],
             security_config["client_key"],
             server_cert,
@@ -203,7 +208,7 @@ def server_supports_sign_and_encrypt(url, timeout=10):
     for endpoint in endpoints:
         if (
             endpoint.SecurityMode == ua.MessageSecurityMode.SignAndEncrypt
-            and endpoint.SecurityPolicyUri == ua.SecurityPolicyBasic256Sha256.URI
+            and endpoint.SecurityPolicyUri == SECURITY_POLICY_BASIC256SHA256.URI
         ):
             return True
 
