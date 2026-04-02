@@ -5,7 +5,12 @@ from datetime import datetime
 import mysql.connector
 from dotenv import load_dotenv
 from flask import Flask, render_template, request, redirect, url_for, jsonify, session
-from services.opcua_status import get_opcua_status_details, get_automate_variables_details
+from services.opcua_status import (
+    get_alert_thresholds_details,
+    get_automate_variables_details,
+    get_opcua_status_details,
+    set_alert_thresholds_details,
+)
 from services.opcua_requests import close_persistent_client
  
 load_dotenv()
@@ -208,6 +213,40 @@ def recuperer_historique_temperature(limit=60):
             (limit,)
         )
         return cursor.fetchall()
+    finally:
+        table_cursor.close()
+        cursor.close()
+        conn.close()
+
+
+def enregistrer_seuils_alerte(charge, ram, temperature):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    try:
+        table_name = get_cpu_data_table_name(cursor)
+        ensure_cpu_data_table(cursor, table_name)
+        sql = f"INSERT INTO `{table_name}` (charge, ram, temperature, alerte) VALUES (%s, %s, %s, %s)"
+        cursor.execute(sql, (float(charge), float(ram), float(temperature), "SEUILS"))
+        conn.commit()
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def recuperer_derniers_seuils_alerte():
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    table_cursor = conn.cursor()
+
+    try:
+        table_name = get_cpu_data_table_name(table_cursor)
+        ensure_cpu_data_table(table_cursor, table_name)
+        cursor.execute(
+            f"SELECT charge, ram, temperature, horodatage FROM `{table_name}` "
+            "WHERE alerte = 'SEUILS' ORDER BY horodatage DESC LIMIT 1"
+        )
+        return cursor.fetchone()
     finally:
         table_cursor.close()
         cursor.close()
@@ -980,6 +1019,116 @@ def _get_cached_automate_variables(force_refresh=False):
 def api_automate_status():
     """Retourne le dernier statut OPC UA connu sans déclencher de connexion supplémentaire."""
     return jsonify(_last_opcua_status)
+
+
+@app.route("/api/alert-thresholds", methods=["GET"])
+def api_get_alert_thresholds():
+    if not session.get("logged_in"):
+        return jsonify({"ok": False, "error": "Non authentifié."}), 401
+
+    # Source prioritaire: valeurs courantes lues sur l'automate.
+    opcua_result = get_alert_thresholds_details()
+    if opcua_result.get("ok") and opcua_result.get("data"):
+        values = opcua_result["data"]
+        payload = {
+            "seuil_cpu": float(values.get("seuil_cpu", 0)),
+            "seuil_ram": float(values.get("seuil_ram", 0)),
+            "seuil_temp": float(values.get("seuil_temp", 0)),
+        }
+        _last_opcua_status["ok"] = True
+        _last_opcua_status["error"] = None
+        _last_opcua_status["error_code"] = None
+        try:
+            # On garde aussi un snapshot DB pour afficher des valeurs en fallback.
+            enregistrer_seuils_alerte(
+                charge=payload["seuil_cpu"],
+                ram=payload["seuil_ram"],
+                temperature=payload["seuil_temp"],
+            )
+        except Exception:
+            pass
+        return jsonify({"ok": True, "data": payload, "source": "opcua"})
+
+    # Fallback: dernières valeurs connues en base si l'OPC UA est indisponible.
+    db_values = recuperer_derniers_seuils_alerte()
+    if db_values:
+        return jsonify(
+            {
+                "ok": True,
+                "data": {
+                    "seuil_cpu": float(db_values["charge"]),
+                    "seuil_ram": float(db_values["ram"]),
+                    "seuil_temp": float(db_values["temperature"]),
+                },
+                "source": "database",
+                "opcua_error": opcua_result.get("error"),
+                "opcua_error_code": opcua_result.get("error_code"),
+            }
+        )
+
+    return jsonify(
+        {
+            "ok": False,
+            "error": opcua_result.get("error") or "Aucun seuil disponible",
+            "error_code": opcua_result.get("error_code"),
+        }
+    ), 404
+
+
+@app.route("/api/alert-thresholds", methods=["POST"])
+def api_set_alert_thresholds():
+    if not session.get("logged_in"):
+        return jsonify({"ok": False, "error": "Non authentifié."}), 401
+
+    if session.get("role") not in ("Integ", "Admin"):
+        return jsonify({"ok": False, "error": "Accès refusé."}), 403
+
+    payload = request.get_json(silent=True) or request.form
+
+    try:
+        seuil_cpu = float((payload.get("seuil_cpu") or "").strip() if isinstance(payload.get("seuil_cpu"), str) else payload.get("seuil_cpu"))
+        seuil_ram = float((payload.get("seuil_ram") or "").strip() if isinstance(payload.get("seuil_ram"), str) else payload.get("seuil_ram"))
+        seuil_temp = float((payload.get("seuil_temp") or "").strip() if isinstance(payload.get("seuil_temp"), str) else payload.get("seuil_temp"))
+    except (TypeError, ValueError):
+        return jsonify({"ok": False, "error": "Valeurs seuil invalides."}), 400
+
+    # Ordre volontaire: écrire d'abord sur l'automate, puis persister en base.
+    write_result = set_alert_thresholds_details(seuil_ram=seuil_ram, seuil_cpu=seuil_cpu, seuil_temp=seuil_temp)
+    if not write_result.get("ok"):
+        _last_opcua_status["ok"] = False
+        _last_opcua_status["error"] = write_result.get("error")
+        _last_opcua_status["error_code"] = write_result.get("error_code")
+        return jsonify({"ok": False, "error": write_result.get("error"), "error_code": write_result.get("error_code")}), 502
+
+    _last_opcua_status["ok"] = True
+    _last_opcua_status["error"] = None
+    _last_opcua_status["error_code"] = None
+
+    try:
+        enregistrer_seuils_alerte(charge=seuil_cpu, ram=seuil_ram, temperature=seuil_temp)
+    except Exception as exc:
+        return jsonify(
+            {
+                "ok": True,
+                "data": {
+                    "seuil_cpu": seuil_cpu,
+                    "seuil_ram": seuil_ram,
+                    "seuil_temp": seuil_temp,
+                },
+                "warning": f"Seuils ecrits sur automate mais sauvegarde DB echouee: {exc}",
+            }
+        )
+
+    return jsonify(
+        {
+            "ok": True,
+            "data": {
+                "seuil_cpu": seuil_cpu,
+                "seuil_ram": seuil_ram,
+                "seuil_temp": seuil_temp,
+            },
+        }
+    )
 
 
 @app.route("/api/cpu-temperature")

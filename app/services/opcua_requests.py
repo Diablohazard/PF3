@@ -31,6 +31,8 @@ AUTOMATE_NODE_IDS = {
     "plann_net_rob": "ns=4;s=|var|172.30.30.10.Application.GVL_OPCUA.plannNetRob",
 }
 
+ALERT_THRESHOLD_KEYS = ("seuil_ram", "seuil_cpu", "seuil_temp")
+
 
 _persistent_client = None
 _persistent_client_config = None
@@ -242,7 +244,7 @@ def read_named_nodes_sync(url, username, password, node_ids, timeout=10, securit
                 values[name] = None
                 errors[name] = str(exc)
 
-        # If nothing is readable, surface an error so callers can report OPC UA failure.
+        # Si rien n'est lisible, on remonte une erreur claire au code appelant.
         if errors and len(errors) == len(node_ids):
             raise RuntimeError(f"Aucune variable OPC UA lisible: {errors}")
 
@@ -265,6 +267,89 @@ def read_automate_variables_sync(url, username, password, timeout=10, security_c
         username=username,
         password=password,
         node_ids=AUTOMATE_NODE_IDS,
+        timeout=timeout,
+        security_config=security_config,
+    )
+
+
+def write_node_value_sync(url, username, password, node_id, value, timeout=10, security_config=None):
+    # Ecrit une valeur sur un noeud OPC UA en réutilisant la même session persistante.
+    def _operation(client):
+        node = client.get_node(node_id)
+        node.set_value(value)
+        return True
+
+    return _read_with_retry(
+        _operation,
+        url=url,
+        username=username,
+        password=password,
+        timeout=timeout,
+        security_config=security_config,
+    )
+
+
+def write_named_nodes_sync(url, username, password, node_values, timeout=10, security_config=None):
+    # Ecriture groupée: on suit les succès/erreurs par clé pour faciliter le diagnostic.
+    def _operation(client):
+        results = {}
+        errors = {}
+        for name, payload in node_values.items():
+            try:
+                node = client.get_node(payload["node_id"])
+                node.set_value(payload["value"])
+                results[name] = True
+            except Exception as exc:
+                results[name] = False
+                errors[name] = str(exc)
+
+        if errors and len(errors) == len(node_values):
+            raise RuntimeError(f"Aucun seuil OPC UA ecrit: {errors}")
+
+        return {"ok": True, "results": results, "errors": errors}
+
+    return _read_with_retry(
+        _operation,
+        url=url,
+        username=username,
+        password=password,
+        timeout=timeout,
+        security_config=security_config,
+    )
+
+
+def read_alert_thresholds_sync(url, username, password, timeout=10, security_config=None):
+    # Lecture ciblée des seuils d'alerte (RAM/CPU/TEMP) pour l'UI de paramétrage.
+    node_ids = {key: AUTOMATE_NODE_IDS[key] for key in ALERT_THRESHOLD_KEYS}
+    return read_named_nodes_sync(
+        url=url,
+        username=username,
+        password=password,
+        node_ids=node_ids,
+        timeout=timeout,
+        security_config=security_config,
+    )
+
+
+def write_alert_thresholds_sync(url, username, password, thresholds, timeout=10, security_config=None):
+    # Conversion du payload fonctionnel -> mapping noeud OPC UA / valeur.
+    node_values = {}
+    for key in ALERT_THRESHOLD_KEYS:
+        if key not in thresholds:
+            continue
+        node_values[key] = {
+            "node_id": AUTOMATE_NODE_IDS[key],
+            "value": float(thresholds[key]),
+        }
+
+    if not node_values:
+        raise ValueError("Aucun seuil a ecrire")
+
+    return write_named_nodes_sync(
+        url=url,
+        username=username,
+        password=password,
+        node_values=node_values,
         timeout=timeout,
         security_config=security_config,
     )

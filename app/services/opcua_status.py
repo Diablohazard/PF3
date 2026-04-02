@@ -6,16 +6,20 @@ from dotenv import load_dotenv
 try:
     from services.opcua_requests import (
         read_automate_variables_sync,
+        read_alert_thresholds_sync,
         read_node_value_sync,
         server_accepts_anonymous,
         server_supports_sign_and_encrypt,
+        write_alert_thresholds_sync,
     )
 except ImportError:
     from app.services.opcua_requests import (
         read_automate_variables_sync,
+        read_alert_thresholds_sync,
         read_node_value_sync,
         server_accepts_anonymous,
         server_supports_sign_and_encrypt,
+        write_alert_thresholds_sync,
     )
 
 
@@ -157,6 +161,71 @@ def get_automate_variables_details():
         }
     except Exception as exc:
         error_message = f"Erreur de lecture des variables OPC UA: {exc}"
+        print(error_message)
+        return {
+            "ok": False,
+            "data": None,
+            "error": error_message,
+            "error_code": _extract_error_code(exc),
+        }
+
+
+def get_alert_thresholds_details():
+    # Wrapper service: centralise la résolution de config (URL, auth, sécurité)
+    # puis délègue la lecture des seuils au service OPC UA.
+    config = _get_opcua_config()
+    try:
+        values = read_alert_thresholds_sync(
+            url=config["url"],
+            username=config["username"],
+            password=config["password"],
+            timeout=config["timeout"],
+            security_config=config.get("security_config"),
+        )
+        return {
+            "ok": True,
+            "data": values,
+            "error": None,
+            "error_code": None,
+        }
+    except Exception as exc:
+        error_message = f"Erreur de lecture des seuils OPC UA: {exc}"
+        print(error_message)
+        return {
+            "ok": False,
+            "data": None,
+            "error": error_message,
+            "error_code": _extract_error_code(exc),
+        }
+
+
+def set_alert_thresholds_details(seuil_ram, seuil_cpu, seuil_temp):
+    # Normalise d'abord les entrées UI en float avant écriture OPC UA.
+    config = _get_opcua_config()
+    payload = {
+        "seuil_ram": float(seuil_ram),
+        "seuil_cpu": float(seuil_cpu),
+        "seuil_temp": float(seuil_temp),
+    }
+
+    try:
+        result = write_alert_thresholds_sync(
+            url=config["url"],
+            username=config["username"],
+            password=config["password"],
+            thresholds=payload,
+            timeout=config["timeout"],
+            security_config=config.get("security_config"),
+        )
+        return {
+            "ok": True,
+            "data": payload,
+            "write_result": result,
+            "error": None,
+            "error_code": None,
+        }
+    except Exception as exc:
+        error_message = f"Erreur d'ecriture des seuils OPC UA: {exc}"
         print(error_message)
         return {
             "ok": False,
