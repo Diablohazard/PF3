@@ -272,11 +272,42 @@ def read_automate_variables_sync(url, username, password, timeout=10, security_c
     )
 
 
+def _coerce_value_for_variant_type(value, variant_type):
+    if variant_type in (
+        ua.VariantType.SByte,
+        ua.VariantType.Byte,
+        ua.VariantType.Int16,
+        ua.VariantType.UInt16,
+        ua.VariantType.Int32,
+        ua.VariantType.UInt32,
+        ua.VariantType.Int64,
+        ua.VariantType.UInt64,
+    ):
+        return int(float(value))
+
+    if variant_type in (ua.VariantType.Float, ua.VariantType.Double):
+        return float(value)
+
+    if variant_type == ua.VariantType.Boolean:
+        if isinstance(value, str):
+            return value.strip().lower() in ("1", "true", "yes", "on")
+        return bool(value)
+
+    return value
+
+
+def _set_node_value_with_node_type(node, value):
+    variant_type = node.get_data_type_as_variant_type()
+    typed_value = _coerce_value_for_variant_type(value, variant_type)
+    node.set_value(ua.Variant(typed_value, variant_type))
+    return variant_type
+
+
 def write_node_value_sync(url, username, password, node_id, value, timeout=10, security_config=None):
     # Ecrit une valeur sur un noeud OPC UA en réutilisant la même session persistante.
     def _operation(client):
         node = client.get_node(node_id)
-        node.set_value(value)
+        _set_node_value_with_node_type(node, value)
         return True
 
     return _read_with_retry(
@@ -297,7 +328,7 @@ def write_named_nodes_sync(url, username, password, node_values, timeout=10, sec
         for name, payload in node_values.items():
             try:
                 node = client.get_node(payload["node_id"])
-                node.set_value(payload["value"])
+                _set_node_value_with_node_type(node, payload["value"])
                 results[name] = True
             except Exception as exc:
                 results[name] = False
