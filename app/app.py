@@ -372,10 +372,13 @@ def recuperer_historique_suivi_conso(limit=60):
         table_name = get_suivi_conso_table_name(table_cursor)
         ensure_suivi_conso_table(table_cursor, table_name)
         cursor.execute(
-            f"SELECT courant, puissance, energie, horodatage FROM `{table_name}` ORDER BY horodatage ASC LIMIT %s",
+            f"SELECT id_suivi, courant, puissance, energie, horodatage FROM `{table_name}` "
+            "ORDER BY horodatage DESC, id_suivi DESC LIMIT %s",
             (limit,)
         )
-        return cursor.fetchall()
+        # On récupère les N derniers points, puis on les remet en ordre chronologique
+        # pour l'affichage du graphe de gauche à droite.
+        return list(reversed(cursor.fetchall()))
     finally:
         table_cursor.close()
         cursor.close()
