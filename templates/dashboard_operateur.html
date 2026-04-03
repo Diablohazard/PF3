@@ -476,7 +476,7 @@
             <button class="accordion-header">Nouveau role</button>
             <div class="accordion-content">
                 <div style="padding: 15px;">
-                    <form id="adminUserForm" method="post" action="/create_user" style="display: grid; grid-template-columns: 1fr 1fr 1fr 1fr 1fr auto; gap: 16px; align-items: end;">
+                    <form id="adminUserForm" method="post" action="/create_user" style="display: grid; grid-template-columns: 1fr 1fr 1fr 1fr 1fr auto; gap: 16px; align-items: start;">
                         <input type="hidden" id="original_identifiant" name="original_identifiant">
                         <div style="min-width: 0;">
                             <label for="nom">Nom</label><br>
@@ -505,7 +505,7 @@
                                 {% endfor %}
                             </select>
                         </div>
-                        <div style="white-space: nowrap;">
+                        <div style="white-space: nowrap; align-self: end;">
                             <button type="submit" id="adminUserSubmitBtn" style="padding: 9px 18px;">Validation</button>
                             <button type="button" id="adminUserCancelBtn" style="padding: 9px 18px; display: none; margin-left: 8px;">Annuler</button>
                         </div>
