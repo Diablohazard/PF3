@@ -492,7 +492,9 @@
                         </div>
                         <div style="min-width: 0;">
                             <label for="mot_de_passe">Mot de passe</label><br>
-                            <input type="password" id="mot_de_passe" name="mot_de_passe" required style="width: 100%; padding: 8px;">
+                            <!-- Aide côté navigateur uniquement: la règle finale reste validée côté backend. -->
+                            <input type="password" id="mot_de_passe" name="mot_de_passe" required minlength="12" title="12 caractères minimum, avec une majuscule, un chiffre et un caractère spécial." style="width: 100%; padding: 8px;">
+                            <small style="display: block; margin-top: 6px; color: #4b5563;">12 caractères minimum, avec une majuscule, un chiffre et un caractère spécial.</small>
                         </div>
                         <div style="min-width: 0;">
                             <label for="role">Choix du role</label><br>

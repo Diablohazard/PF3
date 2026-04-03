@@ -1,4 +1,5 @@
 import os
+import re
 import time
 from datetime import datetime
  
@@ -494,6 +495,20 @@ def normalize_role_code(role_value):
     return ROLE_VALUE_TO_CODE.get(str(role_value).strip().casefold(), "")
 
 
+def validate_password_strength(password):
+    # Politique minimale de complexité appliquée à toute création/modification de compte.
+    # Règle minimale demandée pour tous les comptes créés/modifiés depuis l'application.
+    if len(password or "") < 12:
+        return False, "Le mot de passe doit contenir au moins 12 caractères."
+    if not re.search(r"[A-Z]", password):
+        return False, "Le mot de passe doit contenir au moins une majuscule."
+    if not re.search(r"\d", password):
+        return False, "Le mot de passe doit contenir au moins un chiffre."
+    if not re.search(r"[^A-Za-z0-9]", password):
+        return False, "Le mot de passe doit contenir au moins un caractère spécial."
+    return True, ""
+
+
 def get_role_label(role_value):
     role_code = normalize_role_code(role_value)
     if role_code:
@@ -714,6 +729,11 @@ def create_registered_user(nom, prenom, identifiant, password, role):
         if not role_code:
             return False, "Rôle invalide."
 
+        # Contrôle serveur obligatoire: empêche de contourner la validation HTML du formulaire.
+        password_ok, password_message = validate_password_strength(password)
+        if not password_ok:
+            return False, password_message
+
         users_table_name, roles_table_name = ensure_user_management_tables(table_cursor)
         cursor.execute(
             f"SELECT id_user FROM `{users_table_name}` WHERE LOWER(login) = LOWER(%s) LIMIT 1",
@@ -776,6 +796,11 @@ def update_registered_user(original_identifiant, nom, prenom, identifiant, passw
         role_code = normalize_role_code(role)
         if not role_code:
             return False, "Rôle invalide."
+
+        # On réapplique la même règle lors de la modification pour garder une politique homogène.
+        password_ok, password_message = validate_password_strength(password)
+        if not password_ok:
+            return False, password_message
 
         users_table_name, roles_table_name = ensure_user_management_tables(table_cursor)
         cursor.execute(

@@ -78,7 +78,9 @@
             <input id="identifiant" type="text" name="identifiant" required>
 
             <label for="mot_de_passe">Mot de passe</label>
-            <input id="mot_de_passe" type="password" name="mot_de_passe" required>
+            <!-- Indication UI: le backend refait systématiquement la validation de complexité. -->
+            <input id="mot_de_passe" type="password" name="mot_de_passe" required minlength="12" title="12 caractères minimum, avec une majuscule, un chiffre et un caractère spécial.">
+            <p style="margin: 0 0 14px 0; color: #4b5563; font-size: 0.95rem;">12 caractères minimum, avec une majuscule, un chiffre et un caractère spécial.</p>
 
             <button class="bootstrap-submit" type="submit">Créer le compte administrateur</button>
         </form>
