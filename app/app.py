@@ -673,10 +673,26 @@ def get_registered_user_for_auth(login):
         conn.close()
 
 
-def authenticate_user(username, password):
-    if username == BOOTSTRAP_ADMIN_LOGIN and password == BOOTSTRAP_ADMIN_PASSWORD:
-        return "Admin"
+def is_user_registry_empty():
+    # Utilisé pour activer le mode bootstrap uniquement au tout premier démarrage.
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    table_cursor = conn.cursor()
 
+    try:
+        users_table_name, _ = ensure_user_management_tables(table_cursor)
+        cursor.execute(f"SELECT COUNT(*) FROM `{users_table_name}`")
+        row = cursor.fetchone()
+        return int(row[0] if row else 0) == 0
+    finally:
+        table_cursor.close()
+        cursor.close()
+        conn.close()
+
+
+def authenticate_user(username, password):
+    # Authentification standard uniquement via comptes stockés en base.
+    # Le couple bootstrap Admin/administrator n'est plus accepté ici.
     account = get_registered_user_for_auth(username)
     if not account:
         return None
@@ -839,6 +855,21 @@ def login():
     if request.method == "POST":
         user = (request.form.get("username") or "").strip()
         password = (request.form.get("password") or "").strip()
+
+        # Flux de bootstrap: si aucun utilisateur n'existe encore,
+        # le couple Admin/administrator ouvre la création du premier compte admin.
+        # Dès qu'un utilisateur existe, ces identifiants sont rejetés.
+        if user == BOOTSTRAP_ADMIN_LOGIN and password == BOOTSTRAP_ADMIN_PASSWORD:
+            try:
+                if is_user_registry_empty():
+                    session.clear()
+                    # Jeton de session temporaire pour autoriser la page /bootstrap-admin.
+                    session["bootstrap_admin_setup_allowed"] = True
+                    return redirect(url_for("bootstrap_admin_setup"))
+                error = "Identifiants incorrects"
+            except mysql.connector.Error as exc:
+                error = str(exc)
+
         role = authenticate_user(user, password)
  
         # 1. Vérification avec identifiants hachés
@@ -881,6 +912,48 @@ def login():
         automate_error=_last_opcua_status["error"],
         automate_error_code=_last_opcua_status["error_code"],
     )
+
+
+@app.route("/bootstrap-admin", methods=["GET", "POST"])
+def bootstrap_admin_setup():
+    try:
+        bootstrap_mode = is_user_registry_empty()
+    except mysql.connector.Error as exc:
+        return render_template("bootstrap_admin.html", error=str(exc))
+
+    if not bootstrap_mode:
+        session.pop("bootstrap_admin_setup_allowed", None)
+        return redirect(url_for("login"))
+
+    # Protection: impossible d'accéder à la création du premier admin
+    # sans être passé par le challenge bootstrap sur la page login.
+    if not session.get("bootstrap_admin_setup_allowed"):
+        return redirect(url_for("login"))
+
+    error = None
+    if request.method == "POST":
+        nom = (request.form.get("nom") or "").strip()
+        prenom = (request.form.get("prenom") or "").strip()
+        identifiant = (request.form.get("identifiant") or "").strip()
+        password = (request.form.get("mot_de_passe") or "").strip()
+
+        if not nom or not prenom or not identifiant or not password:
+            error = "Tous les champs sont obligatoires."
+        else:
+            try:
+                # Le premier entrant est forcé au rôle Admin.
+                created, message = create_registered_user(nom, prenom, identifiant, password, "Admin")
+                if not created:
+                    error = message
+                else:
+                    session.pop("bootstrap_admin_setup_allowed", None)
+                    session["logged_in"] = True
+                    session["role"] = "Admin"
+                    return redirect(url_for("dashboard_op"))
+            except mysql.connector.Error as exc:
+                error = str(exc)
+
+    return render_template("bootstrap_admin.html", error=error)
 
 
 @app.route("/logout", methods=["POST"])

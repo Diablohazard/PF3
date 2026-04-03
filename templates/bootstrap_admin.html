@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title>Initialisation administrateur</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <style>
+        .bootstrap-box {
+            background: #ffffff;
+            border-radius: 12px;
+            box-shadow: 0 8px 22px rgba(0, 0, 0, 0.15);
+            padding: 24px;
+            width: min(460px, 92vw);
+            margin: 20px auto;
+            text-align: left;
+        }
+
+        .bootstrap-title {
+            margin: 0 0 10px 0;
+            font-size: 1.35rem;
+            color: #111827;
+        }
+
+        .bootstrap-hint {
+            margin: 0 0 18px 0;
+            color: #374151;
+            line-height: 1.4;
+        }
+
+        .bootstrap-box input {
+            width: 100%;
+            margin: 8px 0 12px 0;
+            padding: 10px;
+            border: 1px solid #d1d5db;
+            border-radius: 8px;
+            box-sizing: border-box;
+        }
+
+        .bootstrap-submit {
+            width: 100%;
+            padding: 11px 14px;
+            border-radius: 8px;
+            border: none;
+            background: #1d4ed8;
+            color: #ffffff;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        .bootstrap-submit:hover {
+            background: #1e40af;
+        }
+
+        .bootstrap-error {
+            margin-top: 12px;
+            color: #b91c1c;
+            font-weight: 600;
+        }
+    </style>
+</head>
+<body class="login-body">
+    <!-- Écran one-shot: affiché uniquement quand aucun utilisateur n'existe encore. -->
+    <div class="bootstrap-box">
+        <h1 class="bootstrap-title">Créer le premier administrateur</h1>
+        <p class="bootstrap-hint">
+            Aucun utilisateur n'est enregistré. Renseigne le premier compte administrateur pour activer l'application.
+        </p>
+
+        <!-- Le rôle n'est pas demandé ici: il est imposé à Admin côté serveur. -->
+        <form method="post" action="{{ url_for('bootstrap_admin_setup') }}">
+            <label for="nom">Nom</label>
+            <input id="nom" type="text" name="nom" required>
+
+            <label for="prenom">Prénom</label>
+            <input id="prenom" type="text" name="prenom" required>
+
+            <label for="identifiant">Login</label>
+            <input id="identifiant" type="text" name="identifiant" required>
+
+            <label for="mot_de_passe">Mot de passe</label>
+            <input id="mot_de_passe" type="password" name="mot_de_passe" required>
+
+            <button class="bootstrap-submit" type="submit">Créer le compte administrateur</button>
+        </form>
+
+        {% if error %}
+            <p class="bootstrap-error">{{ error }}</p>
+        {% endif %}
+    </div>
+</body>
+</html>
