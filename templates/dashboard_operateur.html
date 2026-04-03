@@ -90,6 +90,22 @@
                     border-radius: 12px;
                     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
                     padding: 14px;
+                    transition: background-color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
+                }
+
+                .history-alert-banner {
+                    background: #dc3545 !important;
+                    color: #ffffff !important;
+                }
+
+                .metric-card-alert {
+                    background: #fff1f2;
+                    border-color: #dc3545;
+                    box-shadow: 0 0 0 1px rgba(220, 53, 69, 0.2), 0 4px 10px rgba(220, 53, 69, 0.15);
+                }
+
+                .metric-value-alert {
+                    color: #b91c1c !important;
                 }
 
                 .metric-label {
@@ -371,10 +387,10 @@
 
         <!-- Historique de charge (spécifique intégrateur) -->
         <div class="accordion-item" {% if not can_view_integrateur_sections %}hidden{% endif %}>
-            <button class="accordion-header">Historique de charge</button>
+            <button id="history-charge-header" class="accordion-header">Historique de charge</button>
             <div class="accordion-content">
                 <div class="cpu-history-grid">
-                    <div class="metric-card">
+                    <div id="cpu-load-card" class="metric-card">
                         <p class="metric-label">Charge CPU</p>
                         <div id="cpu-load" class="metric-value">-- %</div>
                         <div class="metric-bar">
@@ -382,7 +398,7 @@
                         </div>
                     </div>
 
-                    <div class="metric-card">
+                    <div id="ram-usage-card" class="metric-card">
                         <p class="metric-label">RAM CPU</p>
                         <div id="ram-usage" class="metric-value">-- %</div>
                         <div class="metric-bar">
@@ -390,7 +406,7 @@
                         </div>
                     </div>
 
-                    <div class="metric-card">
+                    <div id="temp-card" class="metric-card">
                         <p class="metric-label">Temp. CPU</p>
                         <div class="thermo-wrap">
                             <div class="thermometer" aria-hidden="true">
@@ -632,6 +648,56 @@
         const seuilTempStatus = document.getElementById('seuil_temp_status');
         const saveThresholdsBtn = document.getElementById('save_thresholds_btn');
         const thresholdsMessage = document.getElementById('thresholds_message');
+        const historyChargeHeader = document.getElementById('history-charge-header');
+        const cpuLoadCard = document.getElementById('cpu-load-card');
+        const ramUsageCard = document.getElementById('ram-usage-card');
+        const tempCard = document.getElementById('temp-card');
+        const cpuLoadValueEl = document.getElementById('cpu-load');
+        const ramUsageValueEl = document.getElementById('ram-usage');
+        const tempValueEl = document.getElementById('cpu-temp');
+
+        const latestCpuMetrics = {
+            cpuLoad: null,
+            ramUsage: null,
+            tempC: null,
+        };
+
+        function parseNumberOrNull(value) {
+            const parsed = Number(value);
+            return Number.isFinite(parsed) ? parsed : null;
+        }
+
+        function setAlertClass(element, className, enabled) {
+            if (!element) return;
+            element.classList.toggle(className, !!enabled);
+        }
+
+        function updateHistoryAlertVisuals() {
+            const cpuThreshold = parseNumberOrNull(seuilCpuInput ? seuilCpuInput.value : null);
+            const ramThreshold = parseNumberOrNull(seuilRamInput ? seuilRamInput.value : null);
+            const tempThreshold = parseNumberOrNull(seuilTempInput ? seuilTempInput.value : null);
+
+            const cpuTriggered = cpuThreshold !== null && latestCpuMetrics.cpuLoad !== null && latestCpuMetrics.cpuLoad >= cpuThreshold;
+            const ramTriggered = ramThreshold !== null && latestCpuMetrics.ramUsage !== null && latestCpuMetrics.ramUsage >= ramThreshold;
+            const tempTriggered = tempThreshold !== null && latestCpuMetrics.tempC !== null && latestCpuMetrics.tempC >= tempThreshold;
+
+            setAlertClass(cpuLoadCard, 'metric-card-alert', cpuTriggered);
+            setAlertClass(ramUsageCard, 'metric-card-alert', ramTriggered);
+            setAlertClass(tempCard, 'metric-card-alert', tempTriggered);
+
+            setAlertClass(cpuLoadValueEl, 'metric-value-alert', cpuTriggered);
+            setAlertClass(ramUsageValueEl, 'metric-value-alert', ramTriggered);
+            setAlertClass(tempValueEl, 'metric-value-alert', tempTriggered);
+
+            setAlertClass(historyChargeHeader, 'history-alert-banner', cpuTriggered || ramTriggered || tempTriggered);
+        }
+
+        window.updateCpuMetricSnapshot = function(cpuLoad, ramUsage, tempC) {
+            latestCpuMetrics.cpuLoad = parseNumberOrNull(cpuLoad);
+            latestCpuMetrics.ramUsage = parseNumberOrNull(ramUsage);
+            latestCpuMetrics.tempC = parseNumberOrNull(tempC);
+            updateHistoryAlertVisuals();
+        };
 
         function setThresholdMessage(text, color) {
             if (!thresholdsMessage) return;
@@ -660,6 +726,7 @@
                     if (seuilCpuStatus) seuilCpuStatus.textContent = statuses.seuil_cpu || '--';
                     if (seuilRamStatus) seuilRamStatus.textContent = statuses.seuil_ram || '--';
                     if (seuilTempStatus) seuilTempStatus.textContent = statuses.seuil_temp || '--';
+                    updateHistoryAlertVisuals();
                     setThresholdMessage(`Seuils chargés (${data.source || 'n/a'}).`, '#047857');
                 })
                 .catch(error => {
@@ -985,6 +1052,11 @@
         if (saveThresholdsBtn) {
             saveThresholdsBtn.addEventListener('click', saveAlertThresholds);
         }
+        [seuilCpuInput, seuilRamInput, seuilTempInput].forEach(input => {
+            if (input) {
+                input.addEventListener('input', updateHistoryAlertVisuals);
+            }
+        });
         loadAlertThresholds();
     </script>
 
@@ -1171,9 +1243,16 @@
                         const ramUsageElement = document.getElementById('ram-usage');
                         const cpuLoadBar = document.getElementById('cpu-load-bar');
                         const ramUsageBar = document.getElementById('ram-usage-bar');
+                        const cpuLoadValue = Math.max(0, Math.min(100, parseFloat(data.charge) || 0));
+                        const ramUsageValue = Math.max(0, Math.min(100, parseFloat(data.ram) || 0));
+                        const temperatureValue = parseFloat(data.temperature) || 0;
+
+                        if (typeof window.updateCpuMetricSnapshot === 'function') {
+                            window.updateCpuMetricSnapshot(cpuLoadValue, ramUsageValue, temperatureValue);
+                        }
 
                         if (tempElement) {
-                            const newTemp = parseFloat(data.temperature) || 0;
+                            const newTemp = temperatureValue;
                             tempElement.textContent = newTemp.toFixed(2) + ' °C';
 
                             tempElement.classList.remove('temperature-danger', 'temperature-warning', 'temperature-normal');
@@ -1210,7 +1289,7 @@
                             }
 
                             if (cpuLoadElement && data.charge !== undefined) {
-                                const cpuLoad = Math.max(0, Math.min(100, parseFloat(data.charge) || 0));
+                                const cpuLoad = cpuLoadValue;
                                 cpuLoadElement.textContent = cpuLoad.toFixed(1) + ' %';
                                 if (cpuLoadBar) {
                                     cpuLoadBar.style.width = cpuLoad + '%';
@@ -1218,7 +1297,7 @@
                             }
 
                             if (ramUsageElement && data.ram !== undefined) {
-                                const ramUsage = Math.max(0, Math.min(100, parseFloat(data.ram) || 0));
+                                const ramUsage = ramUsageValue;
                                 ramUsageElement.textContent = ramUsage.toFixed(1) + ' %';
                                 if (ramUsageBar) {
                                     ramUsageBar.style.width = ramUsage + '%';
