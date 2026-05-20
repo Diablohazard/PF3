@@ -1,235 +1,235 @@
-import os
-import re
+import os  # Importe un module ou un package.
+import re  # Importe un module ou un package.
 
-from dotenv import load_dotenv
+from dotenv import load_dotenv  # Importe un élément spécifique depuis un module.
 
-try:
-    from services.opcua_requests import (
-        read_automate_variables_sync,
-        read_alert_thresholds_sync,
-        read_node_value_sync,
-        server_accepts_anonymous,
-        server_supports_sign_and_encrypt,
-        write_alert_thresholds_sync,
-    )
-except ImportError:
-    from app.services.opcua_requests import (
-        read_automate_variables_sync,
-        read_alert_thresholds_sync,
-        read_node_value_sync,
-        server_accepts_anonymous,
-        server_supports_sign_and_encrypt,
-        write_alert_thresholds_sync,
-    )
-
-
-load_dotenv()
-
-DEFAULT_OPCUA_URL = "opc.tcp://172.30.30.10:4840"
-SERVER_STATUS_NODE_ID = "i=2259"
-DEFAULT_OPCUA_TIMEOUT = 10
+try:  # Tente d’exécuter un bloc de code pouvant lever une exception.
+    from services.opcua_requests import (  # Importe un élément spécifique depuis un module.
+        read_automate_variables_sync,  # Effectue une opération de traitement.
+        read_alert_thresholds_sync,  # Effectue une opération de traitement.
+        read_node_value_sync,  # Effectue une opération de traitement.
+        server_accepts_anonymous,  # Effectue une opération de traitement.
+        server_supports_sign_and_encrypt,  # Effectue une opération de traitement.
+        write_alert_thresholds_sync,  # Effectue une opération de traitement.
+    )  # Effectue une opération de traitement.
+except ImportError:  # Capture et traite une exception.
+    from app.services.opcua_requests import (  # Importe un élément spécifique depuis un module.
+        read_automate_variables_sync,  # Effectue une opération de traitement.
+        read_alert_thresholds_sync,  # Effectue une opération de traitement.
+        read_node_value_sync,  # Effectue une opération de traitement.
+        server_accepts_anonymous,  # Effectue une opération de traitement.
+        server_supports_sign_and_encrypt,  # Effectue une opération de traitement.
+        write_alert_thresholds_sync,  # Effectue une opération de traitement.
+    )  # Effectue une opération de traitement.
 
 
-def _build_status(is_online, error_message=None, error_code=None):
-    return {
-        "ok": is_online,
-        "error": error_message,
-        "error_code": error_code,
-    }
+load_dotenv()  # Effectue une opération de traitement.
+
+DEFAULT_OPCUA_URL = "opc.tcp://172.30.30.10:4840"  # Affecte une valeur à une variable.
+SERVER_STATUS_NODE_ID = "i=2259"  # Affecte une valeur à une variable.
+DEFAULT_OPCUA_TIMEOUT = 10  # Affecte une valeur à une variable.
 
 
-def _extract_error_code(exception):
-    exception_text = str(exception)
-    match = re.search(r"\(([A-Za-z][A-Za-z0-9_]+)\)", exception_text)
-    if match:
-        return match.group(1)
-
-    match = re.search(r"\b(Bad[A-Za-z0-9_]+)\b", exception_text)
-    if match:
-        return match.group(1)
-
-    return type(exception).__name__
+def _build_status(is_online, error_message=None, error_code=None):  # Définit la fonction _build_status.
+    return {  # Retourne une valeur depuis la fonction.
+        "ok": is_online,  # Effectue une opération de traitement.
+        "error": error_message,  # Effectue une opération de traitement.
+        "error_code": error_code,  # Effectue une opération de traitement.
+    }  # Effectue une opération de traitement.
 
 
-def _get_opcua_config():
-    timeout_value = os.getenv("OPCUA_TIMEOUT", str(DEFAULT_OPCUA_TIMEOUT)).strip()
-    try:
-        timeout = max(1, int(timeout_value))
-    except ValueError:
-        timeout = DEFAULT_OPCUA_TIMEOUT
+def _extract_error_code(exception):  # Définit la fonction _extract_error_code.
+    exception_text = str(exception)  # Affecte une valeur à une variable.
+    match = re.search(r"\(([A-Za-z][A-Za-z0-9_]+)\)", exception_text)  # Affecte une valeur à une variable.
+    if match:  # Teste une condition.
+        return match.group(1)  # Retourne une valeur depuis la fonction.
 
-    return {
-        "url": os.getenv("OPCUA_URL", DEFAULT_OPCUA_URL).strip(),
-        "username": (os.getenv("OPCUA_USERNAME") or "").strip(),
-        "password": (os.getenv("OPCUA_PASSWORD") or "").strip(),
-        "timeout": timeout,
-        "security_config": {
-            "mode": (os.getenv("OPCUA_SECURITY_MODE", "None") or "None").strip(),
-            "client_cert": (os.getenv("OPCUA_CLIENT_CERT") or "").strip(),
-            "client_key": (os.getenv("OPCUA_CLIENT_KEY") or "").strip(),
-            "server_cert": (os.getenv("OPCUA_SERVER_CERT") or "").strip(),
-        },
-    }
+    match = re.search(r"\b(Bad[A-Za-z0-9_]+)\b", exception_text)  # Affecte une valeur à une variable.
+    if match:  # Teste une condition.
+        return match.group(1)  # Retourne une valeur depuis la fonction.
+
+    return type(exception).__name__  # Retourne une valeur depuis la fonction.
 
 
-def _check_connection(url, username, password, timeout, security_config=None):
-    try:
-        valeur = read_node_value_sync(
-            url=url,
-            username=username,
-            password=password,
-            node_id=SERVER_STATUS_NODE_ID,
-            timeout=timeout,
-            security_config=security_config,
-        )
-        print(f"Etat serveur OPCUA : {valeur}")
-        return _build_status(True)
+def _get_opcua_config():  # Définit la fonction _get_opcua_config.
+    timeout_value = os.getenv("OPCUA_TIMEOUT", str(DEFAULT_OPCUA_TIMEOUT)).strip()  # Affecte une valeur à une variable.
+    try:  # Tente d’exécuter un bloc de code pouvant lever une exception.
+        timeout = max(1, int(timeout_value))  # Affecte une valeur à une variable.
+    except ValueError:  # Capture et traite une exception.
+        timeout = DEFAULT_OPCUA_TIMEOUT  # Affecte une valeur à une variable.
 
-    except Exception as exc:
-        error_message = f"Erreur de connexion Automate: {exc}"
-        print(error_message)
-        return _build_status(False, error_message, _extract_error_code(exc))
+    return {  # Retourne une valeur depuis la fonction.
+        "url": os.getenv("OPCUA_URL", DEFAULT_OPCUA_URL).strip(),  # Effectue une opération de traitement.
+        "username": (os.getenv("OPCUA_USERNAME") or "").strip(),  # Effectue une opération de traitement.
+        "password": (os.getenv("OPCUA_PASSWORD") or "").strip(),  # Effectue une opération de traitement.
+        "timeout": timeout,  # Effectue une opération de traitement.
+        "security_config": {  # Effectue une opération de traitement.
+            "mode": (os.getenv("OPCUA_SECURITY_MODE", "None") or "None").strip(),  # Effectue une opération de traitement.
+            "client_cert": (os.getenv("OPCUA_CLIENT_CERT") or "").strip(),  # Effectue une opération de traitement.
+            "client_key": (os.getenv("OPCUA_CLIENT_KEY") or "").strip(),  # Effectue une opération de traitement.
+            "server_cert": (os.getenv("OPCUA_SERVER_CERT") or "").strip(),  # Effectue une opération de traitement.
+        },  # Effectue une opération de traitement.
+    }  # Effectue une opération de traitement.
 
 
-def get_opcua_status_details():
-    config = _get_opcua_config()
+def _check_connection(url, username, password, timeout, security_config=None):  # Définit la fonction _check_connection.
+    try:  # Tente d’exécuter un bloc de code pouvant lever une exception.
+        valeur = read_node_value_sync(  # Affecte une valeur à une variable.
+            url=url,  # Affecte une valeur à une variable.
+            username=username,  # Affecte une valeur à une variable.
+            password=password,  # Affecte une valeur à une variable.
+            node_id=SERVER_STATUS_NODE_ID,  # Affecte une valeur à une variable.
+            timeout=timeout,  # Affecte une valeur à une variable.
+            security_config=security_config,  # Affecte une valeur à une variable.
+        )  # Effectue une opération de traitement.
+        print(f"Etat serveur OPCUA : {valeur}")  # Effectue une opération de traitement.
+        return _build_status(True)  # Retourne une valeur depuis la fonction.
 
-    security_mode = (config.get("security_config") or {}).get("mode", "None")
+    except Exception as exc:  # Capture et traite une exception.
+        error_message = f"Erreur de connexion Automate: {exc}"  # Affecte une valeur à une variable.
+        print(error_message)  # Effectue une opération de traitement.
+        return _build_status(False, error_message, _extract_error_code(exc))  # Retourne une valeur depuis la fonction.
+
+
+def get_opcua_status_details():  # Définit la fonction get_opcua_status_details.
+    config = _get_opcua_config()  # Affecte une valeur à une variable.
+
+    security_mode = (config.get("security_config") or {}).get("mode", "None")  # Affecte une valeur à une variable.
 
     # If credentials are provided, test authenticated connectivity directly.
     # This avoids false negatives when GetEndpoints is slow/unavailable.
-    try:
-        anonymous_allowed = server_accepts_anonymous(
-            config["url"],
-            timeout=config["timeout"],
-        )
+    try:  # Tente d’exécuter un bloc de code pouvant lever une exception.
+        anonymous_allowed = server_accepts_anonymous(  # Affecte une valeur à une variable.
+            config["url"],  # Effectue une opération de traitement.
+            timeout=config["timeout"],  # Affecte une valeur à une variable.
+        )  # Effectue une opération de traitement.
 
-        if security_mode == "SignAndEncrypt":
-            secure_endpoint_available = server_supports_sign_and_encrypt(
-                config["url"],
-                timeout=config["timeout"],
-            )
-            if not secure_endpoint_available:
-                error_message = (
-                    "Connexion OPC UA refusee: aucun endpoint serveur compatible "
-                    "avec Basic256Sha256 + SignAndEncrypt."
-                )
-                print(error_message)
-                return _build_status(False, error_message, "SecureEndpointUnavailable")
+        if security_mode == "SignAndEncrypt":  # Teste une condition.
+            secure_endpoint_available = server_supports_sign_and_encrypt(  # Affecte une valeur à une variable.
+                config["url"],  # Effectue une opération de traitement.
+                timeout=config["timeout"],  # Affecte une valeur à une variable.
+            )  # Effectue une opération de traitement.
+            if not secure_endpoint_available:  # Teste une condition.
+                error_message = (  # Affecte une valeur à une variable.
+                    "Connexion OPC UA refusee: aucun endpoint serveur compatible "  # Effectue une opération de traitement.
+                    "avec Basic256Sha256 + SignAndEncrypt."  # Effectue une opération de traitement.
+                )  # Effectue une opération de traitement.
+                print(error_message)  # Effectue une opération de traitement.
+                return _build_status(False, error_message, "SecureEndpointUnavailable")  # Retourne une valeur depuis la fonction.
 
-    except Exception as exc:
-        error_message = f"Erreur lors de la lecture des endpoints OPC UA: {exc}"
-        print(error_message)
-        return _build_status(False, error_message, _extract_error_code(exc))
+    except Exception as exc:  # Capture et traite une exception.
+        error_message = f"Erreur lors de la lecture des endpoints OPC UA: {exc}"  # Affecte une valeur à une variable.
+        print(error_message)  # Effectue une opération de traitement.
+        return _build_status(False, error_message, _extract_error_code(exc))  # Retourne une valeur depuis la fonction.
 
-    if not config["username"] and not anonymous_allowed:
-        error_message = (
-            "Connexion OPC UA refusée: le serveur n'accepte pas l'accès anonyme. "
-            "Renseignez OPCUA_USERNAME et OPCUA_PASSWORD dans l'environnement."
-        )
-        print(error_message)
-        return _build_status(False, error_message, "AnonymousNotAllowed")
+    if not config["username"] and not anonymous_allowed:  # Teste une condition.
+        error_message = (  # Affecte une valeur à une variable.
+            "Connexion OPC UA refusée: le serveur n'accepte pas l'accès anonyme. "  # Effectue une opération de traitement.
+            "Renseignez OPCUA_USERNAME et OPCUA_PASSWORD dans l'environnement."  # Effectue une opération de traitement.
+        )  # Effectue une opération de traitement.
+        print(error_message)  # Effectue une opération de traitement.
+        return _build_status(False, error_message, "AnonymousNotAllowed")  # Retourne une valeur depuis la fonction.
 
-    return _check_connection(
-        config["url"],
-        config["username"],
-        config["password"],
-        config["timeout"],
-        config.get("security_config"),
-    )
-
-
-def get_opcua_status():
-    return get_opcua_status_details()["ok"]
+    return _check_connection(  # Retourne une valeur depuis la fonction.
+        config["url"],  # Effectue une opération de traitement.
+        config["username"],  # Effectue une opération de traitement.
+        config["password"],  # Effectue une opération de traitement.
+        config["timeout"],  # Effectue une opération de traitement.
+        config.get("security_config"),  # Effectue une opération de traitement.
+    )  # Effectue une opération de traitement.
 
 
-def get_automate_variables_details():
-    config = _get_opcua_config()
-    try:
-        values = read_automate_variables_sync(
-            url=config["url"],
-            username=config["username"],
-            password=config["password"],
-            timeout=config["timeout"],
-            security_config=config.get("security_config"),
-        )
-        return {
-            "ok": True,
-            "data": values,
-            "error": None,
-            "error_code": None,
-        }
-    except Exception as exc:
-        error_message = f"Erreur de lecture des variables OPC UA: {exc}"
-        print(error_message)
-        return {
-            "ok": False,
-            "data": None,
-            "error": error_message,
-            "error_code": _extract_error_code(exc),
-        }
+def get_opcua_status():  # Définit la fonction get_opcua_status.
+    return get_opcua_status_details()["ok"]  # Retourne une valeur depuis la fonction.
 
 
-def get_alert_thresholds_details():
+def get_automate_variables_details():  # Définit la fonction get_automate_variables_details.
+    config = _get_opcua_config()  # Affecte une valeur à une variable.
+    try:  # Tente d’exécuter un bloc de code pouvant lever une exception.
+        values = read_automate_variables_sync(  # Affecte une valeur à une variable.
+            url=config["url"],  # Affecte une valeur à une variable.
+            username=config["username"],  # Affecte une valeur à une variable.
+            password=config["password"],  # Affecte une valeur à une variable.
+            timeout=config["timeout"],  # Affecte une valeur à une variable.
+            security_config=config.get("security_config"),  # Affecte une valeur à une variable.
+        )  # Effectue une opération de traitement.
+        return {  # Retourne une valeur depuis la fonction.
+            "ok": True,  # Effectue une opération de traitement.
+            "data": values,  # Effectue une opération de traitement.
+            "error": None,  # Effectue une opération de traitement.
+            "error_code": None,  # Effectue une opération de traitement.
+        }  # Effectue une opération de traitement.
+    except Exception as exc:  # Capture et traite une exception.
+        error_message = f"Erreur de lecture des variables OPC UA: {exc}"  # Affecte une valeur à une variable.
+        print(error_message)  # Effectue une opération de traitement.
+        return {  # Retourne une valeur depuis la fonction.
+            "ok": False,  # Effectue une opération de traitement.
+            "data": None,  # Effectue une opération de traitement.
+            "error": error_message,  # Effectue une opération de traitement.
+            "error_code": _extract_error_code(exc),  # Effectue une opération de traitement.
+        }  # Effectue une opération de traitement.
+
+
+def get_alert_thresholds_details():  # Définit la fonction get_alert_thresholds_details.
     # Wrapper service: centralise la résolution de config (URL, auth, sécurité)
     # puis délègue la lecture des seuils au service OPC UA.
-    config = _get_opcua_config()
-    try:
-        values = read_alert_thresholds_sync(
-            url=config["url"],
-            username=config["username"],
-            password=config["password"],
-            timeout=config["timeout"],
-            security_config=config.get("security_config"),
-        )
-        return {
-            "ok": True,
-            "data": values,
-            "error": None,
-            "error_code": None,
-        }
-    except Exception as exc:
-        error_message = f"Erreur de lecture des seuils OPC UA: {exc}"
-        print(error_message)
-        return {
-            "ok": False,
-            "data": None,
-            "error": error_message,
-            "error_code": _extract_error_code(exc),
-        }
+    config = _get_opcua_config()  # Affecte une valeur à une variable.
+    try:  # Tente d’exécuter un bloc de code pouvant lever une exception.
+        values = read_alert_thresholds_sync(  # Affecte une valeur à une variable.
+            url=config["url"],  # Affecte une valeur à une variable.
+            username=config["username"],  # Affecte une valeur à une variable.
+            password=config["password"],  # Affecte une valeur à une variable.
+            timeout=config["timeout"],  # Affecte une valeur à une variable.
+            security_config=config.get("security_config"),  # Affecte une valeur à une variable.
+        )  # Effectue une opération de traitement.
+        return {  # Retourne une valeur depuis la fonction.
+            "ok": True,  # Effectue une opération de traitement.
+            "data": values,  # Effectue une opération de traitement.
+            "error": None,  # Effectue une opération de traitement.
+            "error_code": None,  # Effectue une opération de traitement.
+        }  # Effectue une opération de traitement.
+    except Exception as exc:  # Capture et traite une exception.
+        error_message = f"Erreur de lecture des seuils OPC UA: {exc}"  # Affecte une valeur à une variable.
+        print(error_message)  # Effectue une opération de traitement.
+        return {  # Retourne une valeur depuis la fonction.
+            "ok": False,  # Effectue une opération de traitement.
+            "data": None,  # Effectue une opération de traitement.
+            "error": error_message,  # Effectue une opération de traitement.
+            "error_code": _extract_error_code(exc),  # Effectue une opération de traitement.
+        }  # Effectue une opération de traitement.
 
 
-def set_alert_thresholds_details(seuil_ram, seuil_cpu, seuil_temp):
+def set_alert_thresholds_details(seuil_ram, seuil_cpu, seuil_temp):  # Définit la fonction set_alert_thresholds_details.
     # Normalise d'abord les entrées UI en float avant écriture OPC UA.
-    config = _get_opcua_config()
-    payload = {
-        "seuil_ram": float(seuil_ram),
-        "seuil_cpu": float(seuil_cpu),
-        "seuil_temp": float(seuil_temp),
-    }
+    config = _get_opcua_config()  # Affecte une valeur à une variable.
+    payload = {  # Affecte une valeur à une variable.
+        "seuil_ram": float(seuil_ram),  # Effectue une opération de traitement.
+        "seuil_cpu": float(seuil_cpu),  # Effectue une opération de traitement.
+        "seuil_temp": float(seuil_temp),  # Effectue une opération de traitement.
+    }  # Effectue une opération de traitement.
 
-    try:
-        result = write_alert_thresholds_sync(
-            url=config["url"],
-            username=config["username"],
-            password=config["password"],
-            thresholds=payload,
-            timeout=config["timeout"],
-            security_config=config.get("security_config"),
-        )
-        return {
-            "ok": True,
-            "data": payload,
-            "write_result": result,
-            "error": None,
-            "error_code": None,
-        }
-    except Exception as exc:
-        error_message = f"Erreur d'ecriture des seuils OPC UA: {exc}"
-        print(error_message)
-        return {
-            "ok": False,
-            "data": None,
-            "error": error_message,
-            "error_code": _extract_error_code(exc),
-        }
+    try:  # Tente d’exécuter un bloc de code pouvant lever une exception.
+        result = write_alert_thresholds_sync(  # Affecte une valeur à une variable.
+            url=config["url"],  # Affecte une valeur à une variable.
+            username=config["username"],  # Affecte une valeur à une variable.
+            password=config["password"],  # Affecte une valeur à une variable.
+            thresholds=payload,  # Affecte une valeur à une variable.
+            timeout=config["timeout"],  # Affecte une valeur à une variable.
+            security_config=config.get("security_config"),  # Affecte une valeur à une variable.
+        )  # Effectue une opération de traitement.
+        return {  # Retourne une valeur depuis la fonction.
+            "ok": True,  # Effectue une opération de traitement.
+            "data": payload,  # Effectue une opération de traitement.
+            "write_result": result,  # Effectue une opération de traitement.
+            "error": None,  # Effectue une opération de traitement.
+            "error_code": None,  # Effectue une opération de traitement.
+        }  # Effectue une opération de traitement.
+    except Exception as exc:  # Capture et traite une exception.
+        error_message = f"Erreur d'ecriture des seuils OPC UA: {exc}"  # Affecte une valeur à une variable.
+        print(error_message)  # Effectue une opération de traitement.
+        return {  # Retourne une valeur depuis la fonction.
+            "ok": False,  # Effectue une opération de traitement.
+            "data": None,  # Effectue une opération de traitement.
+            "error": error_message,  # Effectue une opération de traitement.
+            "error_code": _extract_error_code(exc),  # Effectue une opération de traitement.
+        }  # Effectue une opération de traitement.

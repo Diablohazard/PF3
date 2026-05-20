@@ -1,389 +1,389 @@
-import atexit
-import os
-import threading
+import atexit  # Importe un module ou un package.
+import os  # Importe un module ou un package.
+import threading  # Importe un module ou un package.
 
-from opcua import Client as SyncClient
-from opcua import ua
-from opcua.crypto import security_policies
+from opcua import Client as SyncClient  # Importe un élément spécifique depuis un module.
+from opcua import ua  # Importe un élément spécifique depuis un module.
+from opcua.crypto import security_policies  # Importe un élément spécifique depuis un module.
 
-try:
-    from connections.opcua import fetch_server_endpoints
-except ImportError:
-    from app.connections.opcua import fetch_server_endpoints
-
-
-AUTOMATE_NODE_IDS = {
-    "energ_act_l1": "ns=4;s=|var|172.30.30.10.Application.GVL_OPCUA.EnergActL1",
-    "energ_act_l2": "ns=4;s=|var|172.30.30.10.Application.GVL_OPCUA.EnergActL2",
-    "energ_act_tot": "ns=4;s=|var|172.30.30.10.Application.GVL_OPCUA.EnergActTot",
-    "total_time": "ns=4;s=|var|172.30.30.10.Application.GVL_OPCUA.TotalTime",
-    "start_time": "ns=4;s=|var|172.30.30.10.Application.GVL_OPCUA.StartTime",
-    "end_time": "ns=4;s=|var|172.30.30.10.Application.GVL_OPCUA.EndTime",
-    "qty_produced": "ns=4;s=|var|172.30.30.10.Application.GVL_OPCUA.QtyProduced",
-    "qty_target": "ns=4;s=|var|172.30.30.10.Application.GVL_OPCUA.QtyTarget",
-    "cpu_load": "ns=4;s=|var|172.30.30.10.Application.GVL_OPCUA.rCpuLoad",
-    "ram_usage": "ns=4;s=|var|172.30.30.10.Application.GVL_OPCUA.rRamUsage",
-    "temp_c": "ns=4;s=|var|172.30.30.10.Application.GVL_OPCUA.rTempC",
-    "seuil_ram": "ns=4;s=|var|172.30.30.10.Application.GVL_OPCUA.seuilRam",
-    "seuil_cpu": "ns=4;s=|var|172.30.30.10.Application.GVL_OPCUA.seuilCpu",
-    "seuil_temp": "ns=4;s=|var|172.30.30.10.Application.GVL_OPCUA.seuilTemp",
-    "plann_ent_preh": "ns=4;s=|var|172.30.30.10.Application.GVL_OPCUA.plannEntPreh",
-    "plann_net_rob": "ns=4;s=|var|172.30.30.10.Application.GVL_OPCUA.plannNetRob",
-}
-
-ALERT_THRESHOLD_KEYS = ("seuil_ram", "seuil_cpu", "seuil_temp")
+try:  # Tente d’exécuter un bloc de code pouvant lever une exception.
+    from connections.opcua import fetch_server_endpoints  # Importe un élément spécifique depuis un module.
+except ImportError:  # Capture et traite une exception.
+    from app.connections.opcua import fetch_server_endpoints  # Importe un élément spécifique depuis un module.
 
 
-_persistent_client = None
-_persistent_client_config = None
-_persistent_client_lock = threading.Lock()
+AUTOMATE_NODE_IDS = {  # Affecte une valeur à une variable.
+    "energ_act_l1": "ns=4;s=|var|172.30.30.10.Application.GVL_OPCUA.EnergActL1",  # Affecte une valeur à une variable.
+    "energ_act_l2": "ns=4;s=|var|172.30.30.10.Application.GVL_OPCUA.EnergActL2",  # Affecte une valeur à une variable.
+    "energ_act_tot": "ns=4;s=|var|172.30.30.10.Application.GVL_OPCUA.EnergActTot",  # Affecte une valeur à une variable.
+    "total_time": "ns=4;s=|var|172.30.30.10.Application.GVL_OPCUA.TotalTime",  # Affecte une valeur à une variable.
+    "start_time": "ns=4;s=|var|172.30.30.10.Application.GVL_OPCUA.StartTime",  # Affecte une valeur à une variable.
+    "end_time": "ns=4;s=|var|172.30.30.10.Application.GVL_OPCUA.EndTime",  # Affecte une valeur à une variable.
+    "qty_produced": "ns=4;s=|var|172.30.30.10.Application.GVL_OPCUA.QtyProduced",  # Affecte une valeur à une variable.
+    "qty_target": "ns=4;s=|var|172.30.30.10.Application.GVL_OPCUA.QtyTarget",  # Affecte une valeur à une variable.
+    "cpu_load": "ns=4;s=|var|172.30.30.10.Application.GVL_OPCUA.rCpuLoad",  # Affecte une valeur à une variable.
+    "ram_usage": "ns=4;s=|var|172.30.30.10.Application.GVL_OPCUA.rRamUsage",  # Affecte une valeur à une variable.
+    "temp_c": "ns=4;s=|var|172.30.30.10.Application.GVL_OPCUA.rTempC",  # Affecte une valeur à une variable.
+    "seuil_ram": "ns=4;s=|var|172.30.30.10.Application.GVL_OPCUA.seuilRam",  # Affecte une valeur à une variable.
+    "seuil_cpu": "ns=4;s=|var|172.30.30.10.Application.GVL_OPCUA.seuilCpu",  # Affecte une valeur à une variable.
+    "seuil_temp": "ns=4;s=|var|172.30.30.10.Application.GVL_OPCUA.seuilTemp",  # Affecte une valeur à une variable.
+    "plann_ent_preh": "ns=4;s=|var|172.30.30.10.Application.GVL_OPCUA.plannEntPreh",  # Affecte une valeur à une variable.
+    "plann_net_rob": "ns=4;s=|var|172.30.30.10.Application.GVL_OPCUA.plannNetRob",  # Affecte une valeur à une variable.
+}  # Effectue une opération de traitement.
+
+ALERT_THRESHOLD_KEYS = ("seuil_ram", "seuil_cpu", "seuil_temp")  # Affecte une valeur à une variable.
+
+
+_persistent_client = None  # Affecte une valeur à une variable.
+_persistent_client_config = None  # Affecte une valeur à une variable.
+_persistent_client_lock = threading.Lock()  # Affecte une valeur à une variable.
 
 # python-opcua exposes security policy classes under opcua.crypto.security_policies
 # (not under opcua.ua in recent versions).
-SECURITY_POLICY_BASIC256SHA256 = security_policies.SecurityPolicyBasic256Sha256
+SECURITY_POLICY_BASIC256SHA256 = security_policies.SecurityPolicyBasic256Sha256  # Affecte une valeur à une variable.
 
 
-def _fetch_server_certificate(url, timeout=10):
+def _fetch_server_certificate(url, timeout=10):  # Définit la fonction _fetch_server_certificate.
     """
     Récupère automatiquement le certificat serveur via GetEndpoints (standard OPC UA).
     Le serveur envoie son certificat DER dans chaque descripteur d'endpoint sécurisé,
     sans authentification requise.
     Retourne le chemin du fichier enregistré, ou None si échec.
     """
-    try:
-        endpoints = fetch_server_endpoints(url, timeout=timeout)
-    except Exception as exc:
-        print(f"⚠ Impossible de contacter le serveur pour récupérer le cert: {exc}")
-        return None
+    try:  # Tente d’exécuter un bloc de code pouvant lever une exception.
+        endpoints = fetch_server_endpoints(url, timeout=timeout)  # Affecte une valeur à une variable.
+    except Exception as exc:  # Capture et traite une exception.
+        print(f"⚠ Impossible de contacter le serveur pour récupérer le cert: {exc}")  # Effectue une opération de traitement.
+        return None  # Retourne une valeur depuis la fonction.
 
-    server_cert_bytes = None
-    for endpoint in endpoints:
-        cert = getattr(endpoint, "ServerCertificate", None)
-        if cert and len(cert) > 0:
-            server_cert_bytes = bytes(cert)
-            break
+    server_cert_bytes = None  # Affecte une valeur à une variable.
+    for endpoint in endpoints:  # Boucle sur une séquence d’éléments.
+        cert = getattr(endpoint, "ServerCertificate", None)  # Affecte une valeur à une variable.
+        if cert and len(cert) > 0:  # Teste une condition.
+            server_cert_bytes = bytes(cert)  # Affecte une valeur à une variable.
+            break  # Effectue une opération de traitement.
 
-    if not server_cert_bytes:
-        print("⚠ Le serveur n'a pas fourni de certificat dans ses endpoints.")
-        return None
+    if not server_cert_bytes:  # Teste une condition.
+        print("⚠ Le serveur n'a pas fourni de certificat dans ses endpoints.")  # Effectue une opération de traitement.
+        return None  # Retourne une valeur depuis la fonction.
 
-    certs_dir = os.path.join(os.path.dirname(__file__), "..", "certs")
-    os.makedirs(certs_dir, exist_ok=True)
-    cert_path = os.path.normpath(os.path.join(certs_dir, "server_cert.der"))
+    certs_dir = os.path.join(os.path.dirname(__file__), "..", "certs")  # Affecte une valeur à une variable.
+    os.makedirs(certs_dir, exist_ok=True)  # Affecte une valeur à une variable.
+    cert_path = os.path.normpath(os.path.join(certs_dir, "server_cert.der"))  # Affecte une valeur à une variable.
 
-    try:
-        with open(cert_path, "wb") as f:
-            f.write(server_cert_bytes)
-        print(f"✓ Certificat serveur capturé automatiquement: {cert_path}")
-        return cert_path
-    except Exception as exc:
-        print(f"⚠ Impossible d'écrire le certificat serveur: {exc}")
-        return None
-
-
-def _validate_security_config(security_config):
-    if not security_config:
-        return
-
-    mode = (security_config.get("mode") or "None").strip()
-    if mode == "None":
-        return
-
-    if mode != "SignAndEncrypt":
-        raise ValueError(f"Mode de securite OPC UA non supporte: {mode}")
-
-    required_fields = ("client_cert", "client_key")
-    missing = [field for field in required_fields if not (security_config.get(field) or "").strip()]
-    if missing:
-        raise ValueError(
-            f"Configuration OPC UA incomplete pour SignAndEncrypt: champs manquants {missing}"
-        )
-
-    for field in required_fields:
-        path = (security_config.get(field) or "").strip()
-        if not os.path.isfile(path):
-            raise FileNotFoundError(
-                f"Fichier de securite OPC UA introuvable pour {field}: {path}"
-            )
+    try:  # Tente d’exécuter un bloc de code pouvant lever une exception.
+        with open(cert_path, "wb") as f:  # Effectue une opération de traitement.
+            f.write(server_cert_bytes)  # Effectue une opération de traitement.
+        print(f"✓ Certificat serveur capturé automatiquement: {cert_path}")  # Effectue une opération de traitement.
+        return cert_path  # Retourne une valeur depuis la fonction.
+    except Exception as exc:  # Capture et traite une exception.
+        print(f"⚠ Impossible d'écrire le certificat serveur: {exc}")  # Effectue une opération de traitement.
+        return None  # Retourne une valeur depuis la fonction.
 
 
-def _create_sync_client(url, username, password, timeout, security_config=None):
-    _validate_security_config(security_config)
+def _validate_security_config(security_config):  # Définit la fonction _validate_security_config.
+    if not security_config:  # Teste une condition.
+        return  # Retourne une valeur depuis la fonction.
 
-    client = SyncClient(url, timeout=timeout)
-    if username:
-        client.set_user(username)
-        client.set_password(password)
+    mode = (security_config.get("mode") or "None").strip()  # Affecte une valeur à une variable.
+    if mode == "None":  # Teste une condition.
+        return  # Retourne une valeur depuis la fonction.
 
-    if (security_config or {}).get("mode") == "SignAndEncrypt":
-        server_cert = (security_config.get("server_cert") or "").strip()
+    if mode != "SignAndEncrypt":  # Teste une condition.
+        raise ValueError(f"Mode de securite OPC UA non supporte: {mode}")  # Effectue une opération de traitement.
+
+    required_fields = ("client_cert", "client_key")  # Affecte une valeur à une variable.
+    missing = [field for field in required_fields if not (security_config.get(field) or "").strip()]  # Affecte une valeur à une variable.
+    if missing:  # Teste une condition.
+        raise ValueError(  # Effectue une opération de traitement.
+            f"Configuration OPC UA incomplete pour SignAndEncrypt: champs manquants {missing}"  # Effectue une opération de traitement.
+        )  # Effectue une opération de traitement.
+
+    for field in required_fields:  # Boucle sur une séquence d’éléments.
+        path = (security_config.get(field) or "").strip()  # Affecte une valeur à une variable.
+        if not os.path.isfile(path):  # Teste une condition.
+            raise FileNotFoundError(  # Effectue une opération de traitement.
+                f"Fichier de securite OPC UA introuvable pour {field}: {path}"  # Effectue une opération de traitement.
+            )  # Effectue une opération de traitement.
+
+
+def _create_sync_client(url, username, password, timeout, security_config=None):  # Définit la fonction _create_sync_client.
+    _validate_security_config(security_config)  # Effectue une opération de traitement.
+
+    client = SyncClient(url, timeout=timeout)  # Affecte une valeur à une variable.
+    if username:  # Teste une condition.
+        client.set_user(username)  # Effectue une opération de traitement.
+        client.set_password(password)  # Effectue une opération de traitement.
+
+    if (security_config or {}).get("mode") == "SignAndEncrypt":  # Teste une condition.
+        server_cert = (security_config.get("server_cert") or "").strip()  # Affecte une valeur à une variable.
 
         # Si le cert serveur est absent, le capturer automatiquement via GetEndpoints
-        if not server_cert or not os.path.isfile(server_cert):
-            print("ⓘ Certificat serveur manquant, tentative de capture automatique...")
-            captured = _fetch_server_certificate(url, timeout)
-            if captured:
-                server_cert = captured
-            else:
-                raise FileNotFoundError(
-                    "Certificat serveur OPC UA introuvable et capture automatique échouée. "
-                    f"Placez manuellement le certificat dans {security_config.get('server_cert', 'app/certs/server_cert.der')}"
-                )
+        if not server_cert or not os.path.isfile(server_cert):  # Teste une condition.
+            print("ⓘ Certificat serveur manquant, tentative de capture automatique...")  # Effectue une opération de traitement.
+            captured = _fetch_server_certificate(url, timeout)  # Affecte une valeur à une variable.
+            if captured:  # Teste une condition.
+                server_cert = captured  # Affecte une valeur à une variable.
+            else:  # Traite le cas alternatif.
+                raise FileNotFoundError(  # Effectue une opération de traitement.
+                    "Certificat serveur OPC UA introuvable et capture automatique échouée. "  # Effectue une opération de traitement.
+                    f"Placez manuellement le certificat dans {security_config.get('server_cert', 'app/certs/server_cert.der')}"  # Effectue une opération de traitement.
+                )  # Effectue une opération de traitement.
 
-        client.set_security(
-            SECURITY_POLICY_BASIC256SHA256,
-            security_config["client_cert"],
-            security_config["client_key"],
-            server_cert,
-            ua.MessageSecurityMode.SignAndEncrypt,
-        )
+        client.set_security(  # Effectue une opération de traitement.
+            SECURITY_POLICY_BASIC256SHA256,  # Effectue une opération de traitement.
+            security_config["client_cert"],  # Effectue une opération de traitement.
+            security_config["client_key"],  # Effectue une opération de traitement.
+            server_cert,  # Effectue une opération de traitement.
+            ua.MessageSecurityMode.SignAndEncrypt,  # Effectue une opération de traitement.
+        )  # Effectue une opération de traitement.
 
-    return client
-
-
-def _disconnect_persistent_client():
-    global _persistent_client, _persistent_client_config
-    if _persistent_client is not None:
-        try:
-            _persistent_client.disconnect()
-        except Exception:
-            pass
-        finally:
-            _persistent_client = None
-            _persistent_client_config = None
+    return client  # Retourne une valeur depuis la fonction.
 
 
-def close_persistent_client():
-    with _persistent_client_lock:
-        _disconnect_persistent_client()
+def _disconnect_persistent_client():  # Définit la fonction _disconnect_persistent_client.
+    global _persistent_client, _persistent_client_config  # Effectue une opération de traitement.
+    if _persistent_client is not None:  # Teste une condition.
+        try:  # Tente d’exécuter un bloc de code pouvant lever une exception.
+            _persistent_client.disconnect()  # Effectue une opération de traitement.
+        except Exception:  # Capture et traite une exception.
+            pass  # Effectue une opération de traitement.
+        finally:  # Exécute ce bloc quoi qu’il arrive.
+            _persistent_client = None  # Affecte une valeur à une variable.
+            _persistent_client_config = None  # Affecte une valeur à une variable.
 
 
-def _ensure_persistent_client(url, username, password, timeout, security_config=None):
-    global _persistent_client, _persistent_client_config
+def close_persistent_client():  # Définit la fonction close_persistent_client.
+    with _persistent_client_lock:  # Effectue une opération de traitement.
+        _disconnect_persistent_client()  # Effectue une opération de traitement.
 
-    desired_config = {
-        "url": url,
-        "username": username,
-        "password": password,
-        "timeout": timeout,
-        "security": security_config,
-    }
+
+def _ensure_persistent_client(url, username, password, timeout, security_config=None):  # Définit la fonction _ensure_persistent_client.
+    global _persistent_client, _persistent_client_config  # Effectue une opération de traitement.
+
+    desired_config = {  # Affecte une valeur à une variable.
+        "url": url,  # Effectue une opération de traitement.
+        "username": username,  # Effectue une opération de traitement.
+        "password": password,  # Effectue une opération de traitement.
+        "timeout": timeout,  # Effectue une opération de traitement.
+        "security": security_config,  # Effectue une opération de traitement.
+    }  # Effectue une opération de traitement.
 
     # Reconnect if configuration changed (URL/credentials/timeout).
-    if _persistent_client is not None and _persistent_client_config != desired_config:
-        _disconnect_persistent_client()
+    if _persistent_client is not None and _persistent_client_config != desired_config:  # Teste une condition.
+        _disconnect_persistent_client()  # Effectue une opération de traitement.
 
-    if _persistent_client is None:
-        _persistent_client = _create_sync_client(url, username, password, timeout, security_config)
-        _persistent_client.connect()
-        _persistent_client_config = desired_config
+    if _persistent_client is None:  # Teste une condition.
+        _persistent_client = _create_sync_client(url, username, password, timeout, security_config)  # Affecte une valeur à une variable.
+        _persistent_client.connect()  # Effectue une opération de traitement.
+        _persistent_client_config = desired_config  # Affecte une valeur à une variable.
 
-    return _persistent_client
+    return _persistent_client  # Retourne une valeur depuis la fonction.
 
 
-def _read_with_retry(read_operation, url, username, password, timeout, security_config=None):
-    with _persistent_client_lock:
-        try:
-            client = _ensure_persistent_client(url, username, password, timeout, security_config)
-            return read_operation(client)
-        except Exception:
+def _read_with_retry(read_operation, url, username, password, timeout, security_config=None):  # Définit la fonction _read_with_retry.
+    with _persistent_client_lock:  # Effectue une opération de traitement.
+        try:  # Tente d’exécuter un bloc de code pouvant lever une exception.
+            client = _ensure_persistent_client(url, username, password, timeout, security_config)  # Affecte une valeur à une variable.
+            return read_operation(client)  # Retourne une valeur depuis la fonction.
+        except Exception:  # Capture et traite une exception.
             # Force reconnect once, then retry the same operation.
-            _disconnect_persistent_client()
-            client = _ensure_persistent_client(url, username, password, timeout, security_config)
-            return read_operation(client)
+            _disconnect_persistent_client()  # Effectue une opération de traitement.
+            client = _ensure_persistent_client(url, username, password, timeout, security_config)  # Affecte une valeur à une variable.
+            return read_operation(client)  # Retourne une valeur depuis la fonction.
 
 
-def server_accepts_anonymous(url, timeout=10):
-    endpoints = fetch_server_endpoints(url, timeout=timeout)
+def server_accepts_anonymous(url, timeout=10):  # Définit la fonction server_accepts_anonymous.
+    endpoints = fetch_server_endpoints(url, timeout=timeout)  # Affecte une valeur à une variable.
 
-    for endpoint in endpoints:
-        for token in endpoint.UserIdentityTokens:
-            if token.TokenType == ua.UserTokenType.Anonymous:
-                return True
+    for endpoint in endpoints:  # Boucle sur une séquence d’éléments.
+        for token in endpoint.UserIdentityTokens:  # Boucle sur une séquence d’éléments.
+            if token.TokenType == ua.UserTokenType.Anonymous:  # Teste une condition.
+                return True  # Retourne une valeur depuis la fonction.
 
-    return False
-
-
-def server_supports_sign_and_encrypt(url, timeout=10):
-    endpoints = fetch_server_endpoints(url, timeout=timeout)
-
-    for endpoint in endpoints:
-        if (
-            endpoint.SecurityMode == ua.MessageSecurityMode.SignAndEncrypt
-            and endpoint.SecurityPolicyUri == SECURITY_POLICY_BASIC256SHA256.URI
-        ):
-            return True
-
-    return False
+    return False  # Retourne une valeur depuis la fonction.
 
 
-def read_node_value_sync(url, username, password, node_id, timeout=10, security_config=None):
-    def _operation(client):
-        node = client.get_node(node_id)
-        return node.get_value()
+def server_supports_sign_and_encrypt(url, timeout=10):  # Définit la fonction server_supports_sign_and_encrypt.
+    endpoints = fetch_server_endpoints(url, timeout=timeout)  # Affecte une valeur à une variable.
 
-    return _read_with_retry(
-        _operation,
-        url=url,
-        username=username,
-        password=password,
-        timeout=timeout,
-        security_config=security_config,
-    )
+    for endpoint in endpoints:  # Boucle sur une séquence d’éléments.
+        if (  # Teste une condition.
+            endpoint.SecurityMode == ua.MessageSecurityMode.SignAndEncrypt  # Affecte une valeur à une variable.
+            and endpoint.SecurityPolicyUri == SECURITY_POLICY_BASIC256SHA256.URI  # Affecte une valeur à une variable.
+        ):  # Effectue une opération de traitement.
+            return True  # Retourne une valeur depuis la fonction.
+
+    return False  # Retourne une valeur depuis la fonction.
 
 
-def read_named_nodes_sync(url, username, password, node_ids, timeout=10, security_config=None):
-    def _operation(client):
-        values = {}
-        errors = {}
-        for name, node_id in node_ids.items():
-            try:
-                node = client.get_node(node_id)
-                values[name] = node.get_value()
-            except Exception as exc:
-                values[name] = None
-                errors[name] = str(exc)
+def read_node_value_sync(url, username, password, node_id, timeout=10, security_config=None):  # Définit la fonction read_node_value_sync.
+    def _operation(client):  # Définit la fonction _operation.
+        node = client.get_node(node_id)  # Affecte une valeur à une variable.
+        return node.get_value()  # Retourne une valeur depuis la fonction.
+
+    return _read_with_retry(  # Retourne une valeur depuis la fonction.
+        _operation,  # Effectue une opération de traitement.
+        url=url,  # Affecte une valeur à une variable.
+        username=username,  # Affecte une valeur à une variable.
+        password=password,  # Affecte une valeur à une variable.
+        timeout=timeout,  # Affecte une valeur à une variable.
+        security_config=security_config,  # Affecte une valeur à une variable.
+    )  # Effectue une opération de traitement.
+
+
+def read_named_nodes_sync(url, username, password, node_ids, timeout=10, security_config=None):  # Définit la fonction read_named_nodes_sync.
+    def _operation(client):  # Définit la fonction _operation.
+        values = {}  # Affecte une valeur à une variable.
+        errors = {}  # Affecte une valeur à une variable.
+        for name, node_id in node_ids.items():  # Boucle sur une séquence d’éléments.
+            try:  # Tente d’exécuter un bloc de code pouvant lever une exception.
+                node = client.get_node(node_id)  # Affecte une valeur à une variable.
+                values[name] = node.get_value()  # Affecte une valeur à une variable.
+            except Exception as exc:  # Capture et traite une exception.
+                values[name] = None  # Affecte une valeur à une variable.
+                errors[name] = str(exc)  # Affecte une valeur à une variable.
 
         # Si rien n'est lisible, on remonte une erreur claire au code appelant.
-        if errors and len(errors) == len(node_ids):
-            raise RuntimeError(f"Aucune variable OPC UA lisible: {errors}")
+        if errors and len(errors) == len(node_ids):  # Teste une condition.
+            raise RuntimeError(f"Aucune variable OPC UA lisible: {errors}")  # Effectue une opération de traitement.
 
-        return values
+        return values  # Retourne une valeur depuis la fonction.
 
-    return _read_with_retry(
-        _operation,
-        url=url,
-        username=username,
-        password=password,
-        timeout=timeout,
-        security_config=security_config,
-    )
-
-
-
-def read_automate_variables_sync(url, username, password, timeout=10, security_config=None):
-    return read_named_nodes_sync(
-        url=url,
-        username=username,
-        password=password,
-        node_ids=AUTOMATE_NODE_IDS,
-        timeout=timeout,
-        security_config=security_config,
-    )
+    return _read_with_retry(  # Retourne une valeur depuis la fonction.
+        _operation,  # Effectue une opération de traitement.
+        url=url,  # Affecte une valeur à une variable.
+        username=username,  # Affecte une valeur à une variable.
+        password=password,  # Affecte une valeur à une variable.
+        timeout=timeout,  # Affecte une valeur à une variable.
+        security_config=security_config,  # Affecte une valeur à une variable.
+    )  # Effectue une opération de traitement.
 
 
-def _coerce_value_for_variant_type(value, variant_type):
-    if variant_type in (
-        ua.VariantType.SByte,
-        ua.VariantType.Byte,
-        ua.VariantType.Int16,
-        ua.VariantType.UInt16,
-        ua.VariantType.Int32,
-        ua.VariantType.UInt32,
-        ua.VariantType.Int64,
-        ua.VariantType.UInt64,
-    ):
-        return int(float(value))
 
-    if variant_type in (ua.VariantType.Float, ua.VariantType.Double):
-        return float(value)
-
-    if variant_type == ua.VariantType.Boolean:
-        if isinstance(value, str):
-            return value.strip().lower() in ("1", "true", "yes", "on")
-        return bool(value)
-
-    return value
+def read_automate_variables_sync(url, username, password, timeout=10, security_config=None):  # Définit la fonction read_automate_variables_sync.
+    return read_named_nodes_sync(  # Retourne une valeur depuis la fonction.
+        url=url,  # Affecte une valeur à une variable.
+        username=username,  # Affecte une valeur à une variable.
+        password=password,  # Affecte une valeur à une variable.
+        node_ids=AUTOMATE_NODE_IDS,  # Affecte une valeur à une variable.
+        timeout=timeout,  # Affecte une valeur à une variable.
+        security_config=security_config,  # Affecte une valeur à une variable.
+    )  # Effectue une opération de traitement.
 
 
-def _set_node_value_with_node_type(node, value):
-    variant_type = node.get_data_type_as_variant_type()
-    typed_value = _coerce_value_for_variant_type(value, variant_type)
-    node.set_value(ua.Variant(typed_value, variant_type))
-    return variant_type
+def _coerce_value_for_variant_type(value, variant_type):  # Définit la fonction _coerce_value_for_variant_type.
+    if variant_type in (  # Teste une condition.
+        ua.VariantType.SByte,  # Effectue une opération de traitement.
+        ua.VariantType.Byte,  # Effectue une opération de traitement.
+        ua.VariantType.Int16,  # Effectue une opération de traitement.
+        ua.VariantType.UInt16,  # Effectue une opération de traitement.
+        ua.VariantType.Int32,  # Effectue une opération de traitement.
+        ua.VariantType.UInt32,  # Effectue une opération de traitement.
+        ua.VariantType.Int64,  # Effectue une opération de traitement.
+        ua.VariantType.UInt64,  # Effectue une opération de traitement.
+    ):  # Effectue une opération de traitement.
+        return int(float(value))  # Retourne une valeur depuis la fonction.
+
+    if variant_type in (ua.VariantType.Float, ua.VariantType.Double):  # Teste une condition.
+        return float(value)  # Retourne une valeur depuis la fonction.
+
+    if variant_type == ua.VariantType.Boolean:  # Teste une condition.
+        if isinstance(value, str):  # Teste une condition.
+            return value.strip().lower() in ("1", "true", "yes", "on")  # Retourne une valeur depuis la fonction.
+        return bool(value)  # Retourne une valeur depuis la fonction.
+
+    return value  # Retourne une valeur depuis la fonction.
 
 
-def write_node_value_sync(url, username, password, node_id, value, timeout=10, security_config=None):
+def _set_node_value_with_node_type(node, value):  # Définit la fonction _set_node_value_with_node_type.
+    variant_type = node.get_data_type_as_variant_type()  # Affecte une valeur à une variable.
+    typed_value = _coerce_value_for_variant_type(value, variant_type)  # Affecte une valeur à une variable.
+    node.set_value(ua.Variant(typed_value, variant_type))  # Effectue une opération de traitement.
+    return variant_type  # Retourne une valeur depuis la fonction.
+
+
+def write_node_value_sync(url, username, password, node_id, value, timeout=10, security_config=None):  # Définit la fonction write_node_value_sync.
     # Ecrit une valeur sur un noeud OPC UA en réutilisant la même session persistante.
-    def _operation(client):
-        node = client.get_node(node_id)
-        _set_node_value_with_node_type(node, value)
-        return True
+    def _operation(client):  # Définit la fonction _operation.
+        node = client.get_node(node_id)  # Affecte une valeur à une variable.
+        _set_node_value_with_node_type(node, value)  # Effectue une opération de traitement.
+        return True  # Retourne une valeur depuis la fonction.
 
-    return _read_with_retry(
-        _operation,
-        url=url,
-        username=username,
-        password=password,
-        timeout=timeout,
-        security_config=security_config,
-    )
+    return _read_with_retry(  # Retourne une valeur depuis la fonction.
+        _operation,  # Effectue une opération de traitement.
+        url=url,  # Affecte une valeur à une variable.
+        username=username,  # Affecte une valeur à une variable.
+        password=password,  # Affecte une valeur à une variable.
+        timeout=timeout,  # Affecte une valeur à une variable.
+        security_config=security_config,  # Affecte une valeur à une variable.
+    )  # Effectue une opération de traitement.
 
 
-def write_named_nodes_sync(url, username, password, node_values, timeout=10, security_config=None):
+def write_named_nodes_sync(url, username, password, node_values, timeout=10, security_config=None):  # Définit la fonction write_named_nodes_sync.
     # Ecriture groupée: on suit les succès/erreurs par clé pour faciliter le diagnostic.
-    def _operation(client):
-        results = {}
-        errors = {}
-        for name, payload in node_values.items():
-            try:
-                node = client.get_node(payload["node_id"])
-                _set_node_value_with_node_type(node, payload["value"])
-                results[name] = True
-            except Exception as exc:
-                results[name] = False
-                errors[name] = str(exc)
+    def _operation(client):  # Définit la fonction _operation.
+        results = {}  # Affecte une valeur à une variable.
+        errors = {}  # Affecte une valeur à une variable.
+        for name, payload in node_values.items():  # Boucle sur une séquence d’éléments.
+            try:  # Tente d’exécuter un bloc de code pouvant lever une exception.
+                node = client.get_node(payload["node_id"])  # Affecte une valeur à une variable.
+                _set_node_value_with_node_type(node, payload["value"])  # Effectue une opération de traitement.
+                results[name] = True  # Affecte une valeur à une variable.
+            except Exception as exc:  # Capture et traite une exception.
+                results[name] = False  # Affecte une valeur à une variable.
+                errors[name] = str(exc)  # Affecte une valeur à une variable.
 
-        if errors and len(errors) == len(node_values):
-            raise RuntimeError(f"Aucun seuil OPC UA ecrit: {errors}")
+        if errors and len(errors) == len(node_values):  # Teste une condition.
+            raise RuntimeError(f"Aucun seuil OPC UA ecrit: {errors}")  # Effectue une opération de traitement.
 
-        return {"ok": True, "results": results, "errors": errors}
+        return {"ok": True, "results": results, "errors": errors}  # Retourne une valeur depuis la fonction.
 
-    return _read_with_retry(
-        _operation,
-        url=url,
-        username=username,
-        password=password,
-        timeout=timeout,
-        security_config=security_config,
-    )
+    return _read_with_retry(  # Retourne une valeur depuis la fonction.
+        _operation,  # Effectue une opération de traitement.
+        url=url,  # Affecte une valeur à une variable.
+        username=username,  # Affecte une valeur à une variable.
+        password=password,  # Affecte une valeur à une variable.
+        timeout=timeout,  # Affecte une valeur à une variable.
+        security_config=security_config,  # Affecte une valeur à une variable.
+    )  # Effectue une opération de traitement.
 
 
-def read_alert_thresholds_sync(url, username, password, timeout=10, security_config=None):
+def read_alert_thresholds_sync(url, username, password, timeout=10, security_config=None):  # Définit la fonction read_alert_thresholds_sync.
     # Lecture ciblée des seuils d'alerte (RAM/CPU/TEMP) pour l'UI de paramétrage.
-    node_ids = {key: AUTOMATE_NODE_IDS[key] for key in ALERT_THRESHOLD_KEYS}
-    return read_named_nodes_sync(
-        url=url,
-        username=username,
-        password=password,
-        node_ids=node_ids,
-        timeout=timeout,
-        security_config=security_config,
-    )
+    node_ids = {key: AUTOMATE_NODE_IDS[key] for key in ALERT_THRESHOLD_KEYS}  # Affecte une valeur à une variable.
+    return read_named_nodes_sync(  # Retourne une valeur depuis la fonction.
+        url=url,  # Affecte une valeur à une variable.
+        username=username,  # Affecte une valeur à une variable.
+        password=password,  # Affecte une valeur à une variable.
+        node_ids=node_ids,  # Affecte une valeur à une variable.
+        timeout=timeout,  # Affecte une valeur à une variable.
+        security_config=security_config,  # Affecte une valeur à une variable.
+    )  # Effectue une opération de traitement.
 
 
-def write_alert_thresholds_sync(url, username, password, thresholds, timeout=10, security_config=None):
+def write_alert_thresholds_sync(url, username, password, thresholds, timeout=10, security_config=None):  # Définit la fonction write_alert_thresholds_sync.
     # Conversion du payload fonctionnel -> mapping noeud OPC UA / valeur.
-    node_values = {}
-    for key in ALERT_THRESHOLD_KEYS:
-        if key not in thresholds:
-            continue
-        node_values[key] = {
-            "node_id": AUTOMATE_NODE_IDS[key],
-            "value": float(thresholds[key]),
-        }
+    node_values = {}  # Affecte une valeur à une variable.
+    for key in ALERT_THRESHOLD_KEYS:  # Boucle sur une séquence d’éléments.
+        if key not in thresholds:  # Teste une condition.
+            continue  # Effectue une opération de traitement.
+        node_values[key] = {  # Affecte une valeur à une variable.
+            "node_id": AUTOMATE_NODE_IDS[key],  # Effectue une opération de traitement.
+            "value": float(thresholds[key]),  # Effectue une opération de traitement.
+        }  # Effectue une opération de traitement.
 
-    if not node_values:
-        raise ValueError("Aucun seuil a ecrire")
+    if not node_values:  # Teste une condition.
+        raise ValueError("Aucun seuil a ecrire")  # Effectue une opération de traitement.
 
-    return write_named_nodes_sync(
-        url=url,
-        username=username,
-        password=password,
-        node_values=node_values,
-        timeout=timeout,
-        security_config=security_config,
-    )
+    return write_named_nodes_sync(  # Retourne une valeur depuis la fonction.
+        url=url,  # Affecte une valeur à une variable.
+        username=username,  # Affecte une valeur à une variable.
+        password=password,  # Affecte une valeur à une variable.
+        node_values=node_values,  # Affecte une valeur à une variable.
+        timeout=timeout,  # Affecte une valeur à une variable.
+        security_config=security_config,  # Affecte une valeur à une variable.
+    )  # Effectue une opération de traitement.
 
 
-atexit.register(close_persistent_client)
+atexit.register(close_persistent_client)  # Effectue une opération de traitement.
