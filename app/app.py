@@ -2,7 +2,9 @@ import os
 import re
 import time
 from datetime import datetime
- 
+import hashlib
+import secrets
+
 import mysql.connector
 from dotenv import load_dotenv
 from flask import Flask, render_template, request, redirect, url_for, jsonify, session
@@ -18,9 +20,13 @@ load_dotenv()
  
 app = Flask(__name__, template_folder="../templates", static_folder="../static")
 app.secret_key = "une_cle_secrete_tres_longue"
- 
- 
- 
+
+PASSWORD_HASH_ALGORITHM = "sha256"
+PASSWORD_HASH_ITERATIONS = 150000
+PASSWORD_SALT_BYTES = 32
+PASSWORD_PEPPER_ENV = "PASSWORD_PEPPER"
+
+
 def get_db_connection():
     return mysql.connector.connect(
         host=os.getenv("DB_HOST", "localhost").strip('"'),
@@ -45,12 +51,13 @@ def get_intervention_table_name(cursor):
     row = cursor.fetchone()
  
     if row:
-        return row[0]
+        return sanitize_sql_identifier(row[0])
  
     return "Intervention"
  
  
 def ensure_intervention_table(cursor, table_name):
+    table_name = sanitize_sql_identifier(table_name)
     cursor.execute(
         f"""
         CREATE TABLE IF NOT EXISTS `{table_name}` (
@@ -149,10 +156,11 @@ def get_cpu_data_table_name(cursor):
         """
     )
     row = cursor.fetchone()
-    return row[0] if row else "donnees_cpu"
+    return sanitize_sql_identifier(row[0]) if row else "donnees_cpu"
 
 
 def ensure_cpu_data_table(cursor, table_name):
+    table_name = sanitize_sql_identifier(table_name)
     cursor.execute(
         f"""
         CREATE TABLE IF NOT EXISTS `{table_name}` (
@@ -301,10 +309,11 @@ def get_suivi_conso_table_name(cursor):
         """
     )
     row = cursor.fetchone()
-    return row[0] if row else "suivi_conso"
+    return sanitize_sql_identifier(row[0]) if row else "suivi_conso"
 
 
 def ensure_suivi_conso_table(cursor, table_name):
+    table_name = sanitize_sql_identifier(table_name)
     cursor.execute(
         f"""
         CREATE TABLE IF NOT EXISTS `{table_name}` (
@@ -413,7 +422,7 @@ def get_users_table_name(cursor):
         """
     )
     row = cursor.fetchone()
-    return row[0] if row else "Users"
+    return sanitize_sql_identifier(row[0]) if row else "Users"
 
 
 def get_roles_table_name(cursor):
@@ -428,10 +437,11 @@ def get_roles_table_name(cursor):
         """
     )
     row = cursor.fetchone()
-    return row[0] if row else "roles"
+    return sanitize_sql_identifier(row[0]) if row else "roles"
 
 
 def ensure_roles_table(cursor, table_name):
+    table_name = sanitize_sql_identifier(table_name)
     cursor.execute(
         f"""
         CREATE TABLE IF NOT EXISTS `{table_name}` (
@@ -444,6 +454,8 @@ def ensure_roles_table(cursor, table_name):
 
 
 def ensure_users_table(cursor, users_table_name, roles_table_name):
+    users_table_name = sanitize_sql_identifier(users_table_name)
+    roles_table_name = sanitize_sql_identifier(roles_table_name)
     cursor.execute(
         f"""
         CREATE TABLE IF NOT EXISTS `{users_table_name}` (
@@ -451,10 +463,66 @@ def ensure_users_table(cursor, users_table_name, roles_table_name):
             prenom VARCHAR(50) NOT NULL,
             nom VARCHAR(50) NOT NULL,
             login VARCHAR(50) UNIQUE NOT NULL,
-            password VARCHAR(50) NOT NULL
+            password VARCHAR(255) NOT NULL,
+            salt VARCHAR(64) NULL
         )
         """
     )
+
+
+def get_password_pepper():
+    return os.getenv(PASSWORD_PEPPER_ENV, "").strip('"')
+
+
+def generate_password_salt():
+    return secrets.token_hex(PASSWORD_SALT_BYTES)
+
+
+def hash_password(password, salt=None):
+    if salt is None:
+        salt = generate_password_salt()
+
+    pepper = get_password_pepper()
+    password_bytes = (password + pepper).encode("utf-8")
+    salt_bytes = bytes.fromhex(salt)
+    hashed = hashlib.pbkdf2_hmac(
+        PASSWORD_HASH_ALGORITHM,
+        password_bytes,
+        salt_bytes,
+        PASSWORD_HASH_ITERATIONS,
+    )
+    return hashed.hex(), salt
+
+
+def verify_password(password, stored_hash, salt):
+    if not stored_hash or not salt:
+        return False
+    hashed_password, _ = hash_password(password, salt)
+    return secrets.compare_digest(hashed_password, stored_hash)
+
+
+def upgrade_legacy_user_password(user_id, password):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        users_table_name = sanitize_sql_identifier(get_users_table_name(cursor))
+        hashed_password, salt = hash_password(password)
+        cursor.execute(
+            f"UPDATE `{users_table_name}` SET password = %s, salt = %s WHERE id_user = %s",
+            (hashed_password, salt, user_id),
+        )
+        conn.commit()
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def sanitize_sql_identifier(identifier):
+    if not isinstance(identifier, str):
+        raise ValueError("Invalid SQL identifier")
+    if not re.fullmatch(r"[A-Za-z0-9_]+", identifier):
+        raise ValueError("Invalid SQL identifier")
+    return identifier
 
 
 def ensure_user_management_tables(cursor):
@@ -467,6 +535,15 @@ def ensure_user_management_tables(cursor):
 
     if "id_role" not in users_columns:
         cursor.execute(f"ALTER TABLE `{users_table_name}` ADD COLUMN id_role INT NULL")
+
+    if "salt" not in users_columns:
+        cursor.execute(f"ALTER TABLE `{users_table_name}` ADD COLUMN salt VARCHAR(64) NULL")
+        users_columns.add("salt")
+
+    if "password" in users_columns:
+        cursor.execute(
+            f"ALTER TABLE `{users_table_name}` MODIFY COLUMN password VARCHAR(255) NOT NULL"
+        )
 
     if "id_user" not in role_columns:
         cursor.execute(f"ALTER TABLE `{roles_table_name}` ADD COLUMN id_user INT NULL")
@@ -618,7 +695,7 @@ def fetch_registered_users():
         select_id_role = ", u.id_role" if "id_role" in users_columns else ""
         cursor.execute(
             f"""
-            SELECT u.id_user, u.prenom, u.nom, u.login, u.password{select_id_role}
+            SELECT u.id_user, u.prenom, u.nom, u.login{select_id_role}
             FROM `{users_table_name}` u
             ORDER BY u.nom ASC, u.prenom ASC, u.login ASC
             """
@@ -639,7 +716,7 @@ def fetch_registered_users():
                     "nom": user["nom"],
                     "prenom": user["prenom"],
                     "identifiant": user["login"],
-                    "mot_de_passe": user.get("password", ""),
+                    "mot_de_passe": "",
                     "role": role_name,
                     "role_label": get_role_label(role_name),
                 }
@@ -660,9 +737,10 @@ def get_registered_user_for_auth(login):
         users_table_name, roles_table_name = ensure_user_management_tables(table_cursor)
         users_columns = get_table_columns(table_cursor, users_table_name)
         select_id_role = ", u.id_role" if "id_role" in users_columns else ""
+        select_salt = ", u.salt" if "salt" in users_columns else ""
         cursor.execute(
             f"""
-            SELECT u.id_user, u.login, u.password{select_id_role}
+            SELECT u.id_user, u.login, u.password{select_id_role}{select_salt}
             FROM `{users_table_name}` u
             WHERE LOWER(u.login) = LOWER(%s)
             LIMIT 1
@@ -712,8 +790,13 @@ def authenticate_user(username, password):
     if not account:
         return None
 
-    if account["password"] != password:
-        return None
+    if account.get("salt"):
+        if not verify_password(password, account["password"], account["salt"]):
+            return None
+    else:
+        if account["password"] != password:
+            return None
+        upgrade_legacy_user_password(account["id_user"], password)
 
     role = normalize_role_code(account.get("role") or "Operat")
     return role if role in AVAILABLE_ROLES else None
@@ -742,12 +825,13 @@ def create_registered_user(nom, prenom, identifiant, password, role):
         if cursor.fetchone() or identifiant.casefold() == BOOTSTRAP_ADMIN_LOGIN.casefold():
             return False, "Cet identifiant existe déjà."
 
+        hashed_password, salt = hash_password(password)
         cursor.execute(
             f"""
-            INSERT INTO `{users_table_name}` (prenom, nom, login, password)
-            VALUES (%s, %s, %s, %s)
+            INSERT INTO `{users_table_name}` (prenom, nom, login, password, salt)
+            VALUES (%s, %s, %s, %s, %s)
             """,
-            (prenom, nom, identifiant, password)
+            (prenom, nom, identifiant, hashed_password, salt)
         )
         user_id = cursor.lastrowid
         set_role_for_user(table_cursor, users_table_name, roles_table_name, user_id, role_code)
@@ -818,13 +902,14 @@ def update_registered_user(original_identifiant, nom, prenom, identifiant, passw
         if cursor.fetchone() or identifiant.casefold() == BOOTSTRAP_ADMIN_LOGIN.casefold():
             return False, "Cet identifiant existe déjà."
 
+        hashed_password, salt = hash_password(password)
         cursor.execute(
             f"""
             UPDATE `{users_table_name}`
-            SET prenom = %s, nom = %s, login = %s, password = %s
+            SET prenom = %s, nom = %s, login = %s, password = %s, salt = %s
             WHERE id_user = %s
             """,
-            (prenom, nom, identifiant, password, user["id_user"]),
+            (prenom, nom, identifiant, hashed_password, salt, user["id_user"]),
         )
         set_role_for_user(table_cursor, users_table_name, roles_table_name, user["id_user"], role_code)
         conn.commit()

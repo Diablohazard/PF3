@@ -9,7 +9,8 @@ class Users(Base):
     prenom = Column(String(50), nullable=False)
     nom = Column(String(50), nullable=False)
     login = Column(String(50), unique=True, nullable=False)
-    password = Column(String(50), nullable=False)
+    password = Column(String(255), nullable=False)
+    salt = Column(String(64), nullable=True)
 
     ## Pour la jointure
     id_role = Column(Integer, ForeignKey("roles.id_role"), nullable=True)

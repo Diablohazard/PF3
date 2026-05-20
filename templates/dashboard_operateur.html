@@ -531,7 +531,7 @@
                                 <td style="padding: 12px;">{{ user.identifiant }}</td>
                                 <td style="padding: 12px;">{{ user.role_label }}</td>
                                 <td style="padding: 12px;">
-                                    <button type="button" class="maintenance-action-btn admin-edit-role-btn" data-nom="{{ user.nom }}" data-prenom="{{ user.prenom }}" data-identifiant="{{ user.identifiant }}" data-password="{{ user.mot_de_passe }}" data-role="{{ user.role }}" title="Modifier l'utilisateur">✏️</button>
+                                    <button type="button" class="maintenance-action-btn admin-edit-role-btn" data-nom="{{ user.nom }}" data-prenom="{{ user.prenom }}" data-identifiant="{{ user.identifiant }}" data-role="{{ user.role }}" title="Modifier l'utilisateur">✏️</button>
                                     <button type="button" class="maintenance-action-btn admin-delete-user-btn" data-identifiant="{{ user.identifiant }}" title="Supprimer">🗑️</button>
                                 </td>
                             </tr>
@@ -805,8 +805,7 @@
                             ` data-nom="${escapeHtml(user.nom)}"` +
                             ` data-prenom="${escapeHtml(user.prenom)}"` +
                             ` data-identifiant="${escapeHtml(user.identifiant)}"` +
-                            ` data-password="${escapeHtml(user.mot_de_passe || '')}"` +
-                            ` data-role="${escapeHtml(user.role)}"` +
+                                ` data-role="${escapeHtml(user.role)}"` +
                             ` title="Modifier l'utilisateur">✏️</button>` +
                         `<button type="button" class="maintenance-action-btn admin-delete-user-btn"` +
                             ` data-identifiant="${escapeHtml(user.identifiant)}"` +
@@ -842,7 +841,7 @@
                     adminNomInput.value = this.dataset.nom || '';
                     adminPrenomInput.value = this.dataset.prenom || '';
                     adminIdentifiantInput.value = this.dataset.identifiant || '';
-                    adminPasswordInput.value = this.dataset.password || '';
+                    adminPasswordInput.value = '';
                     adminRoleInput.value = this.dataset.role || 'Operat';
                     adminUserSubmitBtn.textContent = 'Mettre à jour';
                     if (adminUserCancelBtn) {
