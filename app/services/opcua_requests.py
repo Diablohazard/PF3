@@ -184,22 +184,37 @@ def _ensure_persistent_client(url, username, password, timeout, security_config=
             _persistent_client_config = desired_config  # Affecte une valeur à une variable.
         except Exception as exc:  # Capture et traite une exception.
             if _is_sign_and_encrypt_config(security_config):  # Teste une condition.
-                try:  # Tente un fallback vers anonymous (best-effort, sans vérification préalable).
-                    print("⚠ Connexion SignAndEncrypt échouée, tentative de fallback vers anonymous (best-effort)...")  # Effectue une opération de traitement.
-                    # Ensure any partial/failed secure channel is fully disconnected
-                    _disconnect_persistent_client()
-                    _persistent_client = _create_sync_client(url, "", "", timeout, security_config=None)  # Affecte une valeur à une variable.
-                    _persistent_client.connect()  # Effectue une opération de traitement.
-                    _persistent_client_config = {  # Affecte une valeur à une variable.
-                        "url": url,  # Effectue une opération de traitement.
-                        "username": "",  # Affecte une valeur à une variable.
-                        "password": "",  # Affecte une valeur à une variable.
-                        "timeout": timeout,  # Affecte une valeur à une variable.
-                        "security": None,  # Affecte une valeur à une variable.
-                    }  # Effectue une opération de traitement.
-                    return _persistent_client  # Retourne une valeur depuis la fonction.
+                # Ensure any partial/failed secure channel is fully disconnected
+                _disconnect_persistent_client()
+                # First try fallback: username/password over an unsecured endpoint
+                try:
+                    if username:  # If credentials provided, prefer username/password fallback
+                        print("⚠ Connexion SignAndEncrypt échouée, tentative de fallback vers UserName (no security)...")
+                        _persistent_client = _create_sync_client(url, username, password, timeout, security_config=None)
+                        _persistent_client.connect()
+                        _persistent_client_config = {
+                            "url": url,
+                            "username": username,
+                            "password": password,
+                            "timeout": timeout,
+                            "security": None,
+                        }
+                        return _persistent_client
+                    else:
+                        # no username: try anonymous as last resort
+                        print("⚠ Connexion SignAndEncrypt échouée, tentative de fallback vers anonymous (best-effort)...")
+                        _persistent_client = _create_sync_client(url, "", "", timeout, security_config=None)
+                        _persistent_client.connect()
+                        _persistent_client_config = {
+                            "url": url,
+                            "username": "",
+                            "password": "",
+                            "timeout": timeout,
+                            "security": None,
+                        }
+                        return _persistent_client
                 except Exception as fallback_exc:  # Capture et traite une exception.
-                    print(f"⚠ Fallback anonymous impossible: {fallback_exc}")  # Effectue une opération de traitement.
+                    print(f"⚠ Fallback impossible: {fallback_exc}")  # Effectue une opération de traitement.
             raise exc  # Effectue une opération de traitement.
 
     return _persistent_client  # Retourne une valeur depuis la fonction.
