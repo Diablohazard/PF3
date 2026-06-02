@@ -42,6 +42,31 @@
             font-weight: normal;
             opacity: 0.95;
         }
+
+        .threshold-alert-banner {
+            position: absolute;
+            top: 15px;
+            left: 15px;
+            right: 15px;
+            padding: 14px 18px;
+            border-radius: 6px;
+            background-color: #dc3545;
+            color: white;
+            font-family: Arial, sans-serif;
+            font-weight: bold;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+            z-index: 1001;
+            text-align: center;
+            line-height: 1.4;
+        }
+
+        .threshold-alert-detail {
+            margin-top: 6px;
+            font-size: 0.9rem;
+            font-weight: normal;
+            white-space: normal;
+            word-break: break-word;
+        }
     </style>
 </head>
 <body class="login-body">
@@ -50,7 +75,7 @@
     {% set automate_error_message = automate_error|default('') %}
     {% set automate_error_code_value = automate_error_code|default('') %}
 
-    <div class="automate-status {% if automate_status %}automate-ok{% else %}automate-ko{% endif %}">
+    <div class="automate-status {% if automate_status %}automate-ok{% else %}automate-ko{% endif %}" {% if threshold_alert_message %}style="top:90px;"{% endif %}>
         {% if automate_status %}
             🟢 Automate Wago : En Ligne
         {% else %}
@@ -63,6 +88,19 @@
             {% endif %}
         {% endif %}
     </div>
+
+    {% if threshold_alert_message %}
+        <div class="threshold-alert-banner">
+            {{ threshold_alert_message }}
+            {% if threshold_alert_details %}
+                <div class="threshold-alert-detail">
+                    {% for detail in threshold_alert_details %}
+                        {{ detail }}{% if not loop.last %} · {% endif %}
+                    {% endfor %}
+                </div>
+            {% endif %}
+        </div>
+    {% endif %}
 
     <div class="login-container">
         <img src="{{ url_for('static', filename='images/logo.png/logo.png') }}" class="logo">

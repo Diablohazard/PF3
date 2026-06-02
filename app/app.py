@@ -1005,11 +1005,44 @@ def login():  # Définit la fonction login.
  
     # Rafraîchir immédiatement le statut OPC UA (au lieu de relire juste le cache statique)
     # Cela évite que le badge reste "Hors Ligne" longtemps après l'affichage de la page
+    threshold_alert_message = None  # Affecte une valeur à une variable.
+    threshold_alert_details = None  # Affecte une valeur à une variable.
     try:  # Tente d’exécuter un bloc de code pouvant lever une exception.
         status = get_opcua_status_details()  # Affecte une valeur à une variable.
         _last_opcua_status["ok"] = status.get("ok")  # Affecte une valeur à une variable.
         _last_opcua_status["error"] = status.get("error")  # Affecte une valeur à une variable.
         _last_opcua_status["error_code"] = status.get("error_code")  # Affecte une valeur à une variable.
+
+        if _last_opcua_status["ok"]:  # Teste une condition.
+            thresholds_result = get_alert_thresholds_details()  # Affecte une valeur à une variable.
+            if thresholds_result.get("ok") and thresholds_result.get("data"):  # Teste une condition.
+                automates, _ = _get_cached_automate_variables()  # Affecte une valeur à une variable.
+                automate_values = (automates or {}).get("data") or {}  # Affecte une valeur à une variable.
+                statuses = _build_alert_statuses(thresholds_result["data"], automate_values)  # Affecte une valeur à une variable.
+                triggered = [  # Affecte une valeur à une variable.
+                    key for key, state in statuses.items() if state == "Déclenchée"
+                ]  # Effectue une opération de traitement.
+                if triggered:  # Teste une condition.
+                    label_map = {
+                        "seuil_cpu": "CPU",  # Affecte une valeur à une variable.
+                        "seuil_ram": "RAM",  # Affecte une valeur à une variable.
+                        "seuil_temp": "Température",  # Affecte une valeur à une variable.
+                    }  # Effectue une opération de traitement.
+                    threshold_alert_message = "Alerte seuil : " + ", ".join(
+                        label_map.get(key, key) for key in triggered
+                    )  # Affecte une valeur à une variable.
+                    threshold_alert_details = []  # Affecte une valeur à une variable.
+                    current_map = {
+                        "seuil_cpu": "cpu_load",  # Affecte une valeur à une variable.
+                        "seuil_ram": "ram_usage",  # Affecte une valeur à une variable.
+                        "seuil_temp": "temp_c",  # Affecte une valeur à une variable.
+                    }  # Effectue une opération de traitement.
+                    for key in triggered:  # Boucle sur une séquence d’éléments.
+                        current_value = automate_values.get(current_map.get(key, ""), "?")
+                        threshold_value = thresholds_result["data"].get(key, "?")
+                        threshold_alert_details.append(
+                            f"{label_map.get(key, key)} : {current_value} / {threshold_value}"
+                        )  # Effectue une opération de traitement.
     except Exception as exc:  # Capture une exception et exécute un traitement adapté.
         _last_opcua_status["ok"] = False  # Affecte une valeur à une variable.
         _last_opcua_status["error"] = str(exc)  # Affecte une valeur à une variable.
@@ -1021,6 +1054,8 @@ def login():  # Définit la fonction login.
         automate_ok=_last_opcua_status["ok"],  # Affecte une valeur à une variable.
         automate_error=_last_opcua_status["error"],  # Affecte une valeur à une variable.
         automate_error_code=_last_opcua_status["error_code"],  # Affecte une valeur à une variable.
+        threshold_alert_message=threshold_alert_message,  # Affecte une valeur à une variable.
+        threshold_alert_details=threshold_alert_details,  # Affecte une valeur à une variable.
     )  # Effectue une opération de traitement des données.
 
 
