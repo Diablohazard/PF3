@@ -104,13 +104,16 @@ def get_opcua_status_details():  # Définit la fonction get_opcua_status_details
 
     security_mode = (config.get("security_config") or {}).get("mode", "None")  # Affecte une valeur à une variable.
 
-    # If credentials are provided, test authenticated connectivity directly.
-    # This avoids false negatives when GetEndpoints is slow/unavailable.
+    # Only inspect endpoint anonymous support when anonymous access is relevant.
+    # If security is None and credentials are provided, we can connect directly
+    # with username/password without checking GetEndpoints first.
+    anonymous_allowed = None
     try:  # Tente d’exécuter un bloc de code pouvant lever une exception.
-        anonymous_allowed = server_accepts_anonymous(  # Affecte une valeur à une variable.
-            config["url"],  # Effectue une opération de traitement.
-            timeout=config["timeout"],  # Affecte une valeur à une variable.
-        )  # Effectue une opération de traitement.
+        if security_mode != "None" or not config["username"]:  # Teste une condition.
+            anonymous_allowed = server_accepts_anonymous(  # Affecte une valeur à une variable.
+                config["url"],  # Effectue une opération de traitement.
+                timeout=config["timeout"],  # Affecte une valeur à une variable.
+            )  # Effectue une opération de traitement.
 
         if security_mode == "SignAndEncrypt":  # Teste une condition.
             secure_endpoint_available = server_supports_sign_and_encrypt(  # Affecte une valeur à une variable.
