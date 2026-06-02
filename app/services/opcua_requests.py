@@ -12,24 +12,29 @@ except ImportError:  # Capture et traite une exception.
     from app.connections.opcua import fetch_server_endpoints  # Importe un élément spécifique depuis un module.
 
 
-AUTOMATE_NODE_IDS = {  # Affecte une valeur à une variable.
-    "energ_act_l1": "ns=4;s=|var|172.30.30.10.Application.GVL_OPCUA.EnergActL1",  # Affecte une valeur à une variable.
-    "energ_act_l2": "ns=4;s=|var|172.30.30.10.Application.GVL_OPCUA.EnergActL2",  # Affecte une valeur à une variable.
-    "energ_act_tot": "ns=4;s=|var|172.30.30.10.Application.GVL_OPCUA.EnergActTot",  # Affecte une valeur à une variable.
-    "total_time": "ns=4;s=|var|172.30.30.10.Application.GVL_OPCUA.TotalTime",  # Affecte une valeur à une variable.
-    "start_time": "ns=4;s=|var|172.30.30.10.Application.GVL_OPCUA.StartTime",  # Affecte une valeur à une variable.
-    "end_time": "ns=4;s=|var|172.30.30.10.Application.GVL_OPCUA.EndTime",  # Affecte une valeur à une variable.
-    "qty_produced": "ns=4;s=|var|172.30.30.10.Application.GVL_OPCUA.QtyProduced",  # Affecte une valeur à une variable.
-    "qty_target": "ns=4;s=|var|172.30.30.10.Application.GVL_OPCUA.QtyTarget",  # Affecte une valeur à une variable.
-    "cpu_load": "ns=4;s=|var|172.30.30.10.Application.GVL_OPCUA.rCpuLoad",  # Affecte une valeur à une variable.
-    "ram_usage": "ns=4;s=|var|172.30.30.10.Application.GVL_OPCUA.rRamUsage",  # Affecte une valeur à une variable.
-    "temp_c": "ns=4;s=|var|172.30.30.10.Application.GVL_OPCUA.rTempC",  # Affecte une valeur à une variable.
-    "seuil_ram": "ns=4;s=|var|172.30.30.10.Application.GVL_OPCUA.seuilRam",  # Affecte une valeur à une variable.
-    "seuil_cpu": "ns=4;s=|var|172.30.30.10.Application.GVL_OPCUA.seuilCpu",  # Affecte une valeur à une variable.
-    "seuil_temp": "ns=4;s=|var|172.30.30.10.Application.GVL_OPCUA.seuilTemp",  # Affecte une valeur à une variable.
-    "plann_ent_preh": "ns=4;s=|var|172.30.30.10.Application.GVL_OPCUA.plannEntPreh",  # Affecte une valeur à une variable.
-    "plann_net_rob": "ns=4;s=|var|172.30.30.10.Application.GVL_OPCUA.plannNetRob",  # Affecte une valeur à une variable.
+# Mapping des noms internes vers les noms réels sur le serveur OPC UA.
+# Les variables sont localisées dans le "Jeu de symboles" (namespace 5).
+# Ce mapping est utilisé pour découvrir les nodes lors de la connexion.
+VARIABLE_NAME_MAP = {  # Affecte une valeur à une variable.
+    "energ_act_l1": "EnergActL1",  # Affecte une valeur à une variable.
+    "energ_act_l2": "EnergActL2",  # Affecte une valeur à une variable.
+    "energ_act_tot": "EnergActTot",  # Affecte une valeur à une variable.
+    "total_time": "TotalTime",  # Affecte une valeur à une variable.
+    "start_time": "StartTime",  # Affecte une valeur à une variable.
+    "end_time": "EndTime",  # Affecte une valeur à une variable.
+    "qty_produced": "QtyProduced",  # Affecte une valeur à une variable.
+    "qty_target": "QtyTarget",  # Affecte une valeur à une variable.
+    "cpu_load": "rCpuLoad",  # Affecte une valeur à une variable.
+    "ram_usage": "rRamUsage",  # Affecte une valeur à une variable.
+    "temp_c": "rTempC",  # Affecte une valeur à une variable.
+    "seuil_ram": "seuilRam",  # Affecte une valeur à une variable.
+    "seuil_cpu": "seuilCpu",  # Affecte une valeur à une variable.
+    "seuil_temp": "seuilTemp",  # Affecte une valeur à une variable.
+    "plann_ent_preh": "plannEntPreh",  # Affecte une valeur à une variable.
+    "plann_net_rob": "plannNetRob",  # Affecte une valeur à une variable.
 }  # Effectue une opération de traitement.
+
+AUTOMATE_NODE_IDS = VARIABLE_NAME_MAP  # Compatibilité avec le code existant  # Affecte une valeur à une variable.
 
 ALERT_THRESHOLD_KEYS = ("seuil_ram", "seuil_cpu", "seuil_temp")  # Affecte une valeur à une variable.
 
@@ -37,10 +42,55 @@ ALERT_THRESHOLD_KEYS = ("seuil_ram", "seuil_cpu", "seuil_temp")  # Affecte une v
 _persistent_client = None  # Affecte une valeur à une variable.
 _persistent_client_config = None  # Affecte une valeur à une variable.
 _persistent_client_lock = threading.Lock()  # Affecte une valeur à une variable.
+_symbol_set_cache = None  # Cache pour les variables du Jeu de symboles  # Affecte une valeur à une variable.
+_symbol_set_lock = threading.Lock()  # Lock pour accès thread-safe au cache  # Affecte une valeur à une variable.
 
 # python-opcua exposes security policy classes under opcua.crypto.security_policies
 # (not under opcua.ua in recent versions).
 SECURITY_POLICY_BASIC256SHA256 = security_policies.SecurityPolicyBasic256Sha256  # Affecte une valeur à une variable.
+
+
+def _get_symbol_set_variables(client):  # Définit la fonction _get_symbol_set_variables.
+    """
+    Découvre dynamiquement les variables OPC UA depuis le 'Jeu de symboles'.
+    Retourne un dictionnaire {nom_variable: node_object}.
+    """
+    try:  # Tente d'exécuter un bloc de code pouvant lever une exception.
+        objects = client.get_node("i=85")  # Objects node  # Effectue une opération de traitement.
+        children = objects.get_children()  # Récupère les enfants  # Effectue une opération de traitement.
+        
+        symbol_set_node = None  # Affecte une valeur à une variable.
+        for child in children:  # Boucle sur une séquence d'éléments.
+            child_dn = child.get_display_name()  # Effectue une opération de traitement.
+            if child_dn and child_dn.Text == "Jeu de symboles":  # Teste une condition.
+                symbol_set_node = child  # Affecte une valeur à une variable.
+                break  # Effectue une opération de traitement.
+
+        if symbol_set_node is not None:  # Teste une condition.
+            variables = symbol_set_node.get_children()  # Récupère les variables  # Affecte une valeur à une variable.
+            var_map = {}  # Affecte une valeur à une variable.
+            for var_node in variables:  # Boucle sur une séquence d'éléments.
+                var_dn = var_node.get_display_name()  # Effectue une opération de traitement.
+                if var_dn:  # Teste une condition.
+                    var_map[var_dn.Text] = var_node  # Affecte une valeur à une variable.
+            return var_map  # Retourne une valeur depuis la fonction.
+    except Exception as exc:  # Capture et traite une exception.
+        print(f"⚠ Erreur lors de la découverte des variables OPC UA: {exc}")  # Effectue une opération de traitement.
+    
+    return {}  # Retourne une valeur depuis la fonction.
+
+
+def _resolve_node_reference(node_ref, client):  # Définit la fonction _resolve_node_reference.
+    """
+    Résout un référence de noeud OPC UA.
+    - Si c'est un identifiant de symbole (par exemple "seuilRam"), on cherche dans le Jeu de symboles.
+    - Si c'est un node id standard (ns=...), on l'utilise directement.
+    """
+    if isinstance(node_ref, str) and not node_ref.startswith("ns="):
+        symbol_set_vars = _get_symbol_set_variables(client)
+        if node_ref in symbol_set_vars:
+            return symbol_set_vars[node_ref]
+    return client.get_node(node_ref)
 
 
 def _fetch_server_certificate(url, timeout=10):  # Définit la fonction _fetch_server_certificate.
@@ -275,9 +325,20 @@ def read_named_nodes_sync(url, username, password, node_ids, timeout=10, securit
     def _operation(client):  # Définit la fonction _operation.
         values = {}  # Affecte une valeur à une variable.
         errors = {}  # Affecte une valeur à une variable.
-        for name, node_id in node_ids.items():  # Boucle sur une séquence d’éléments.
+
+        # Découvre les variables depuis le "Jeu de symboles" si node_ids contient des noms au lieu d'IDs
+        symbol_set_vars = _get_symbol_set_variables(client)  # Affecte une valeur à une variable.
+
+        for name, node_ref in node_ids.items():  # Boucle sur une séquence d’éléments.
             try:  # Tente d’exécuter un bloc de code pouvant lever une exception.
-                node = client.get_node(node_id)  # Affecte une valeur à une variable.
+                if isinstance(node_ref, str) and not node_ref.startswith("ns="):  # Teste une condition.
+                    if node_ref in symbol_set_vars:  # Teste une condition.
+                        node = symbol_set_vars[node_ref]  # Affecte une valeur à une variable.
+                    else:  # Effectue une opération de traitement.
+                        raise RuntimeError(f"Variable '{node_ref}' non trouvée dans le Jeu de symboles")  # Effectue une opération de traitement.
+                else:  # Effectue une opération de traitement.
+                    node = client.get_node(node_ref)  # Affecte une valeur à une variable.
+
                 values[name] = node.get_value()  # Affecte une valeur à une variable.
             except Exception as exc:  # Capture et traite une exception.
                 values[name] = None  # Affecte une valeur à une variable.
@@ -345,7 +406,7 @@ def _set_node_value_with_node_type(node, value):  # Définit la fonction _set_no
 def write_node_value_sync(url, username, password, node_id, value, timeout=10, security_config=None):  # Définit la fonction write_node_value_sync.
     # Ecrit une valeur sur un noeud OPC UA en réutilisant la même session persistante.
     def _operation(client):  # Définit la fonction _operation.
-        node = client.get_node(node_id)  # Affecte une valeur à une variable.
+        node = _resolve_node_reference(node_id, client)  # Affecte une valeur à une variable.
         _set_node_value_with_node_type(node, value)  # Effectue une opération de traitement.
         return True  # Retourne une valeur depuis la fonction.
 
@@ -366,7 +427,7 @@ def write_named_nodes_sync(url, username, password, node_values, timeout=10, sec
         errors = {}  # Affecte une valeur à une variable.
         for name, payload in node_values.items():  # Boucle sur une séquence d’éléments.
             try:  # Tente d’exécuter un bloc de code pouvant lever une exception.
-                node = client.get_node(payload["node_id"])  # Affecte une valeur à une variable.
+                node = _resolve_node_reference(payload["node_id"], client)  # Affecte une valeur à une variable.
                 _set_node_value_with_node_type(node, payload["value"])  # Effectue une opération de traitement.
                 results[name] = True  # Affecte une valeur à une variable.
             except Exception as exc:  # Capture et traite une exception.
