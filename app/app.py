@@ -1015,10 +1015,22 @@ def login():  # Définit la fonction login.
 
         if _last_opcua_status["ok"]:  # Teste une condition.
             thresholds_result = get_alert_thresholds_details()  # Affecte une valeur à une variable.
+            alert_thresholds = None  # Affecte une valeur à une variable.
             if thresholds_result.get("ok") and thresholds_result.get("data"):  # Teste une condition.
+                alert_thresholds = thresholds_result["data"]  # Affecte une valeur à une variable.
+            else:  # Prend le chemin alternatif si la lecture OPC UA échoue.
+                db_values = recuperer_derniers_seuils_alerte()  # Affecte une valeur à une variable.
+                if db_values:  # Teste une condition.
+                    alert_thresholds = {
+                        "seuil_cpu": float(db_values["seuil_charge"] if db_values["seuil_charge"] is not None else db_values["charge"]),
+                        "seuil_ram": float(db_values["seuil_ram"] if db_values["seuil_ram"] is not None else db_values["ram"]),
+                        "seuil_temp": float(db_values["seuil_temperature"] if db_values["seuil_temperature"] is not None else db_values["temperature"]),
+                    }  # Effectue une opération de traitement.
+
+            if alert_thresholds:  # Teste une condition.
                 automates, _ = _get_cached_automate_variables()  # Affecte une valeur à une variable.
                 automate_values = (automates or {}).get("data") or {}  # Affecte une valeur à une variable.
-                statuses = _build_alert_statuses(thresholds_result["data"], automate_values)  # Affecte une valeur à une variable.
+                statuses = _build_alert_statuses(alert_thresholds, automate_values)  # Affecte une valeur à une variable.
                 triggered = [  # Affecte une valeur à une variable.
                     key for key, state in statuses.items() if state == "Déclenchée"
                 ]  # Effectue une opération de traitement.
@@ -1039,7 +1051,7 @@ def login():  # Définit la fonction login.
                     }  # Effectue une opération de traitement.
                     for key in triggered:  # Boucle sur une séquence d’éléments.
                         current_value = automate_values.get(current_map.get(key, ""), "?")
-                        threshold_value = thresholds_result["data"].get(key, "?")
+                        threshold_value = alert_thresholds.get(key, "?")
                         threshold_alert_details.append(
                             f"{label_map.get(key, key)} : {current_value} / {threshold_value}"
                         )  # Effectue une opération de traitement.
