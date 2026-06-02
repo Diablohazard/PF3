@@ -57,19 +57,27 @@ def _get_opcua_config():  # Définit la fonction _get_opcua_config.
         timeout = max(1, int(timeout_value))  # Affecte une valeur à une variable.
     except ValueError:  # Capture et traite une exception.
         timeout = DEFAULT_OPCUA_TIMEOUT  # Affecte une valeur à une variable.
+    cfg = {
+        "url": os.getenv("OPCUA_URL", DEFAULT_OPCUA_URL).strip(),
+        "username": (os.getenv("OPCUA_USERNAME") or "").strip(),
+        "password": (os.getenv("OPCUA_PASSWORD") or "").strip(),
+        "timeout": timeout,
+        "security_config": {
+            "mode": (os.getenv("OPCUA_SECURITY_MODE", "None") or "None").strip(),
+            "client_cert": (os.getenv("OPCUA_CLIENT_CERT") or "").strip(),
+            "client_key": (os.getenv("OPCUA_CLIENT_KEY") or "").strip(),
+            "server_cert": (os.getenv("OPCUA_SERVER_CERT") or "").strip(),
+        },
+    }
 
-    return {  # Retourne une valeur depuis la fonction.
-        "url": os.getenv("OPCUA_URL", DEFAULT_OPCUA_URL).strip(),  # Effectue une opération de traitement.
-        "username": (os.getenv("OPCUA_USERNAME") or "").strip(),  # Effectue une opération de traitement.
-        "password": (os.getenv("OPCUA_PASSWORD") or "").strip(),  # Effectue une opération de traitement.
-        "timeout": timeout,  # Effectue une opération de traitement.
-        "security_config": {  # Effectue une opération de traitement.
-            "mode": (os.getenv("OPCUA_SECURITY_MODE", "None") or "None").strip(),  # Effectue une opération de traitement.
-            "client_cert": (os.getenv("OPCUA_CLIENT_CERT") or "").strip(),  # Effectue une opération de traitement.
-            "client_key": (os.getenv("OPCUA_CLIENT_KEY") or "").strip(),  # Effectue une opération de traitement.
-            "server_cert": (os.getenv("OPCUA_SERVER_CERT") or "").strip(),  # Effectue une opération de traitement.
-        },  # Effectue une opération de traitement.
-    }  # Effectue une opération de traitement.
+    # Optional override: force anonymous connections when troubleshooting.
+    force_anonymous = (os.getenv("OPCUA_FORCE_ANONYMOUS") or "").strip().lower() in ("1", "true", "yes", "on")
+    if force_anonymous:
+        cfg["username"] = ""
+        cfg["password"] = ""
+        cfg["security_config"] = {"mode": "None", "client_cert": "", "client_key": "", "server_cert": ""}
+
+    return cfg
 
 
 def _check_connection(url, username, password, timeout, security_config=None):  # Définit la fonction _check_connection.
@@ -110,32 +118,19 @@ def get_opcua_status_details():  # Définit la fonction get_opcua_status_details
                 timeout=config["timeout"],  # Affecte une valeur à une variable.
             )  # Effectue une opération de traitement.
             if not secure_endpoint_available:  # Teste une condition.
-                if anonymous_allowed:  # Teste une condition.
-                    warning = (  # Affecte une valeur à une variable.
-                        "Connexion OPC UA SignAndEncrypt non disponible, mais le serveur accepte "  # Effectue une opération de traitement.
-                        "l'accès anonymous. Le fallback anonymous sera utilisé."  # Effectue une opération de traitement.
-                    )  # Effectue une opération de traitement.
-                    print(warning)  # Effectue une opération de traitement.
-                else:  # Traite le cas alternatif.
-                    error_message = (  # Affecte une valeur à une variable.
-                        "Connexion OPC UA refusee: aucun endpoint serveur compatible "  # Effectue une opération de traitement.
-                        "avec Basic256Sha256 + SignAndEncrypt."  # Effectue une opération de traitement.
-                    )  # Effectue une opération de traitement.
-                    print(error_message)  # Effectue une opération de traitement.
-                    return _build_status(False, error_message, "SecureEndpointUnavailable")  # Retourne une valeur depuis la fonction.
+                warning = (  # Affecte une valeur à une variable.
+                    "Connexion OPC UA SignAndEncrypt non disponible sur le serveur. "  # Effectue une opération de traitement.
+                    "Tentative de fallback en anonymous (best-effort)."  # Effectue une opération de traitement.
+                )  # Effectue une opération de traitement.
+                print(warning)  # Effectue une opération de traitement.
 
     except Exception as exc:  # Capture et traite une exception.
         error_message = f"Erreur lors de la lecture des endpoints OPC UA: {exc}"  # Affecte une valeur à une variable.
         print(error_message)  # Effectue une opération de traitement.
         return _build_status(False, error_message, _extract_error_code(exc))  # Retourne une valeur depuis la fonction.
 
-    if not config["username"] and not anonymous_allowed:  # Teste une condition.
-        error_message = (  # Affecte une valeur à une variable.
-            "Connexion OPC UA refusée: le serveur n'accepte pas l'accès anonyme. "  # Effectue une opération de traitement.
-            "Renseignez OPCUA_USERNAME et OPCUA_PASSWORD dans l'environnement."  # Effectue une opération de traitement.
-        )  # Effectue une opération de traitement.
-        print(error_message)  # Effectue une opération de traitement.
-        return _build_status(False, error_message, "AnonymousNotAllowed")  # Retourne une valeur depuis la fonction.
+    if not config["username"]:  # Teste une condition.
+        print("⚠ Aucun `OPCUA_USERNAME` fourni: tentative de connexion anonymous (best-effort).")  # Effectue une opération de traitement.
 
     return _check_connection(  # Retourne une valeur depuis la fonction.
         config["url"],  # Effectue une opération de traitement.
