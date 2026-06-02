@@ -187,6 +187,10 @@ def ensure_cpu_data_table(cursor, table_name):  # Définit la fonction ensure_cp
         cursor.execute(f"ALTER TABLE `{table_name}` ADD COLUMN seuil_ram FLOAT NULL")  # Exécute une requête SQL avec des paramètres sécurisés.
     if "seuil_temperature" not in existing_columns:  # Teste une condition.
         cursor.execute(f"ALTER TABLE `{table_name}` ADD COLUMN seuil_temperature FLOAT NULL")  # Exécute une requête SQL avec des paramètres sécurisés.
+    if "horodatage" not in existing_columns:  # Teste une condition.
+        cursor.execute(
+            f"ALTER TABLE `{table_name}` ADD COLUMN horodatage TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
+        )  # Exécute une requête SQL avec des paramètres sécurisés.
 
 
 def enregistrer_temperature(charge, ram, temperature, alerte=None):  # Définit la fonction enregistrer_temperature.
