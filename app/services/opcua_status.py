@@ -110,12 +110,19 @@ def get_opcua_status_details():  # Définit la fonction get_opcua_status_details
                 timeout=config["timeout"],  # Affecte une valeur à une variable.
             )  # Effectue une opération de traitement.
             if not secure_endpoint_available:  # Teste une condition.
-                error_message = (  # Affecte une valeur à une variable.
-                    "Connexion OPC UA refusee: aucun endpoint serveur compatible "  # Effectue une opération de traitement.
-                    "avec Basic256Sha256 + SignAndEncrypt."  # Effectue une opération de traitement.
-                )  # Effectue une opération de traitement.
-                print(error_message)  # Effectue une opération de traitement.
-                return _build_status(False, error_message, "SecureEndpointUnavailable")  # Retourne une valeur depuis la fonction.
+                if anonymous_allowed:  # Teste une condition.
+                    warning = (  # Affecte une valeur à une variable.
+                        "Connexion OPC UA SignAndEncrypt non disponible, mais le serveur accepte "  # Effectue une opération de traitement.
+                        "l'accès anonymous. Le fallback anonymous sera utilisé."  # Effectue une opération de traitement.
+                    )  # Effectue une opération de traitement.
+                    print(warning)  # Effectue une opération de traitement.
+                else:  # Traite le cas alternatif.
+                    error_message = (  # Affecte une valeur à une variable.
+                        "Connexion OPC UA refusee: aucun endpoint serveur compatible "  # Effectue une opération de traitement.
+                        "avec Basic256Sha256 + SignAndEncrypt."  # Effectue une opération de traitement.
+                    )  # Effectue une opération de traitement.
+                    print(error_message)  # Effectue une opération de traitement.
+                    return _build_status(False, error_message, "SecureEndpointUnavailable")  # Retourne une valeur depuis la fonction.
 
     except Exception as exc:  # Capture et traite une exception.
         error_message = f"Erreur lors de la lecture des endpoints OPC UA: {exc}"  # Affecte une valeur à une variable.

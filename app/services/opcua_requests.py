@@ -107,6 +107,10 @@ def _validate_security_config(security_config):  # Définit la fonction _validat
             )  # Effectue une opération de traitement.
 
 
+def _is_sign_and_encrypt_config(security_config):  # Définit la fonction _is_sign_and_encrypt_config.
+    return (security_config or {}).get("mode") == "SignAndEncrypt"  # Retourne une valeur depuis la fonction.
+
+
 def _create_sync_client(url, username, password, timeout, security_config=None):  # Définit la fonction _create_sync_client.
     _validate_security_config(security_config)  # Effectue une opération de traitement.
 
@@ -174,9 +178,28 @@ def _ensure_persistent_client(url, username, password, timeout, security_config=
         _disconnect_persistent_client()  # Effectue une opération de traitement.
 
     if _persistent_client is None:  # Teste une condition.
-        _persistent_client = _create_sync_client(url, username, password, timeout, security_config)  # Affecte une valeur à une variable.
-        _persistent_client.connect()  # Effectue une opération de traitement.
-        _persistent_client_config = desired_config  # Affecte une valeur à une variable.
+        try:  # Tente d’exécuter un bloc de code pouvant lever une exception.
+            _persistent_client = _create_sync_client(url, username, password, timeout, security_config)  # Affecte une variable.
+            _persistent_client.connect()  # Effectue une opération de traitement.
+            _persistent_client_config = desired_config  # Affecte une valeur à une variable.
+        except Exception as exc:  # Capture et traite une exception.
+            if _is_sign_and_encrypt_config(security_config):  # Teste une condition.
+                try:  # Tente un fallback vers anonymous.
+                    if server_accepts_anonymous(url, timeout=timeout):  # Teste une condition.
+                        print("⚠ Connexion SignAndEncrypt échouée, tentative de fallback vers anonymous...")  # Effectue une opération de traitement.
+                        _persistent_client = _create_sync_client(url, "", "", timeout, security_config=None)  # Affecte une valeur à une variable.
+                        _persistent_client.connect()  # Effectue une opération de traitement.
+                        _persistent_client_config = {  # Affecte une valeur à une variable.
+                            "url": url,  # Effectue une opération de traitement.
+                            "username": "",  # Affecte une valeur à une variable.
+                            "password": "",  # Affecte une valeur à une variable.
+                            "timeout": timeout,  # Affecte une valeur à une variable.
+                            "security": None,  # Affecte une valeur à une variable.
+                        }  # Effectue une opération de traitement.
+                        return _persistent_client  # Retourne une valeur depuis la fonction.
+                except Exception as fallback_exc:  # Capture et traite une exception.
+                    print(f"⚠ Fallback anonymous impossible: {fallback_exc}")  # Effectue une opération de traitement.
+            raise exc  # Effectue une opération de traitement.
 
     return _persistent_client  # Retourne une valeur depuis la fonction.
 
