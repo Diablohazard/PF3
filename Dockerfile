@@ -9,7 +9,6 @@ COPY requirements.txt /app/requirements.txt
 RUN python -m pip install --prefer-binary --no-cache-dir flask==3.0.3
 RUN python -m pip install --prefer-binary --no-cache-dir pymysql==1.1.1
 RUN python -m pip install --prefer-binary --no-cache-dir python-dotenv==1.0.1
-RUN python -m pip install --prefer-binary --no-cache-dir sqlalchemy==2.0.30
 
 # Copy the current directory contents into the container at /app
 COPY . /app

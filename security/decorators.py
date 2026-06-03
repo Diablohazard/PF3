@@ -2,9 +2,6 @@ from functools import wraps  # Importe un utilitaire pour préserver les métado
 from flask_login import current_user  # Importe l'utilisateur connecté depuis Flask-Login.
 from flask import abort  # Importe la fonction d'arrêt HTTP pour renvoyer des codes d'erreur.
 
-from app.database.engine import SessionLocal  # Importe le gestionnaire de session SQLAlchemy.
-from app.models.users import Users  # Importe le modèle utilisateur pour les requêtes.
-
 """
 Lorsqu'un seul rôle ou plusieurs peuvent avoir accès à la route.
 usage:
@@ -17,6 +14,9 @@ def roles_required(*roles):  # Définit le décorateur roles_required acceptant 
         def decorated_function(*args, **kwargs):  # Définit la fonction qui sera exécutée en remplacement.
             if not current_user.is_authenticated:  # Vérifie que l'utilisateur est authentifié.
                 abort(401)  # Renvoie un code 401 lorsque l'accès est refusé.
+
+            from app.database.engine import SessionLocal  # Importe le gestionnaire de session SQLAlchemy.
+            from app.models.users import Users  # Importe le modèle utilisateur pour les requêtes.
 
             # Recharger depuis la DB
             with SessionLocal() as session:  # Ouvre une session de base de données.
