@@ -30,7 +30,7 @@ PASSWORD_PEPPER_ENV = "PASSWORD_PEPPER"  # Affecte une valeur à une variable.
 def get_db_connection():  # Définit la fonction get_db_connection.
     return mysql.connector.connect(  # Retourne une valeur depuis la fonction.
         host=os.getenv("DB_HOST", "localhost").strip('"'),  # Affecte une valeur à une variable.
-        port=int(os.getenv("DB_PORT", "8181").strip('"')),  # Affecte une valeur à une variable.
+        port=int(os.getenv("DB_PORT", "3306").strip('"')),  # Affecte une valeur à une variable.
         user=os.getenv("DB_USER", "pf3user").strip('"'),  # Affecte une valeur à une variable.
         password=os.getenv("DB_PASSWORD", "pf3password").strip('"'),  # Affecte une valeur à une variable.
         database=os.getenv("DB_NAME", os.getenv("DB_DATABASE", "pf3")).strip('"')  # Affecte une valeur à une variable.
