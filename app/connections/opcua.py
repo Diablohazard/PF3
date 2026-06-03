@@ -2,11 +2,13 @@ from asyncua import Client as AsyncClient
 from opcua import Client as SyncClient
 
 
-def create_async_client(url, username="", password="", timeout=10):
+def create_async_client(url, username=None, password=None, timeout=10):
     client = AsyncClient(url=url, timeout=timeout)
+    # If username is provided (non-empty), configure user/password.
+    # Otherwise leave the client untouched to use anonymous identity.
     if username:
         client.set_user(username)
-        client.set_password(password)
+        client.set_password(password or "")
     return client
 
 

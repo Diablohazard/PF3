@@ -58,10 +58,19 @@ def _get_opcua_config():
     except ValueError:
         timeout = DEFAULT_OPCUA_TIMEOUT
 
+    # Normalize environment credentials: return None when not provided to
+    # clearly indicate anonymous connection intent.
+    url = os.getenv("OPCUA_URL", DEFAULT_OPCUA_URL)
+    raw_user = os.getenv("OPCUA_USERNAME")
+    raw_password = os.getenv("OPCUA_PASSWORD")
+
+    username = raw_user.strip() if raw_user and raw_user.strip() else None
+    password = raw_password.strip() if raw_password and raw_password.strip() else None
+
     return {
-        "url": os.getenv("OPCUA_URL", DEFAULT_OPCUA_URL).strip(),
-        "username": (os.getenv("OPCUA_USERNAME") or "").strip(),
-        "password": (os.getenv("OPCUA_PASSWORD") or "").strip(),
+        "url": url.strip(),
+        "username": username,
+        "password": password,
         "timeout": timeout,
         "security_config": {
             "mode": (os.getenv("OPCUA_SECURITY_MODE", "None") or "None").strip(),
