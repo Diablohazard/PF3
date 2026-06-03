@@ -10,7 +10,6 @@ RUN python -m pip install --upgrade "pip<24" "setuptools<58" wheel
 RUN python -m pip install --prefer-binary --no-cache-dir flask==3.0.3
 RUN python -m pip install --prefer-binary --no-cache-dir mysql-connector-python==8.4.0
 RUN python -m pip install --prefer-binary --no-cache-dir opcua==0.98.13
-RUN python -m pip install --prefer-binary --no-cache-dir asyncua==1.0.6
 RUN python -m pip install --prefer-binary --no-cache-dir pymysql==1.1.1
 RUN python -m pip install --prefer-binary --no-cache-dir python-dotenv==1.0.1
 RUN python -m pip install --prefer-binary --no-cache-dir sqlalchemy==2.0.30

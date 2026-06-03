@@ -4,7 +4,6 @@ wheel
 flask==3.0.3
 mysql-connector-python==8.4.0
 opcua==0.98.13
-asyncua==1.0.6
 pymysql==1.1.1
 python-dotenv==1.0.1
 sqlalchemy==2.0.30

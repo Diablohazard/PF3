@@ -1,8 +1,9 @@
-from asyncua import Client as AsyncClient  # Importe un élément spécifique depuis un module.
 from opcua import Client as SyncClient  # Importe un élément spécifique depuis un module.
 
 
 def create_async_client(url, username="", password="", timeout=10):  # Définit la fonction create_async_client.
+    from asyncua import Client as AsyncClient  # Importe un élément spécifique depuis un module.
+
     client = AsyncClient(url=url, timeout=timeout)  # Affecte une valeur à une variable.
     if username:  # Teste une condition.
         client.set_user(username)  # Effectue une opération de traitement.
