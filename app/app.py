@@ -30,7 +30,16 @@ def get_db_connection():
         database=os.getenv("DB_NAME", os.getenv("DB_DATABASE", "pf3")).strip('"')
     )
  
+
+def get_db_status_details():
+    try:
+        conn = get_db_connection()
+        conn.close()
+        return {"ok": True, "error": None}
+    except mysql.connector.Error as exc:
+        return {"ok": False, "error": str(exc)}
  
+
 def get_intervention_table_name(cursor):
     cursor.execute(
         """
@@ -893,9 +902,14 @@ def login():
                     return redirect(url_for("bootstrap_admin_setup"))
                 error = "Identifiants incorrects"
             except mysql.connector.Error as exc:
-                error = str(exc)
+                error = f"Impossible de se connecter à la base de données: {exc}"
 
-        role = authenticate_user(user, password)
+        role = None
+        if not error:
+            try:
+                role = authenticate_user(user, password)
+            except mysql.connector.Error as exc:
+                error = f"Impossible de se connecter à la base de données: {exc}"
  
         # 1. Vérification avec identifiants hachés
         if role:
