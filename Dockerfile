@@ -6,7 +6,7 @@ WORKDIR /app
 
 # Install Python dependencies first to improve Docker layer caching
 COPY requirements.txt /app/requirements.txt
-RUN python -m pip install --upgrade pip setuptools wheel
+RUN python -m pip install --upgrade "pip<24" "setuptools<58" wheel
 RUN python -m pip install --prefer-binary --no-cache-dir flask==3.0.3
 RUN python -m pip install --prefer-binary --no-cache-dir mysql-connector-python==8.4.0
 RUN python -m pip install --prefer-binary --no-cache-dir opcua==0.98.13
