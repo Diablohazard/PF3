@@ -1,5 +1,4 @@
 flask==3.0.3
-mysql-connector-python==8.4.0
 opcua==0.98.13
 pymysql==1.1.1
 python-dotenv==1.0.1

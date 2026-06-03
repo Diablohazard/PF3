@@ -5,7 +5,23 @@ from datetime import datetime  # Importe des éléments spécifiques depuis un m
 import hashlib  # Importe un module Python nécessaire.
 import secrets  # Importe un module Python nécessaire.
 
-import mysql.connector  # Importe un module Python nécessaire.
+try:  # Tente d'utiliser le connecteur MySQL officiel si disponible.
+    import mysql.connector  # Importe un module Python nécessaire.
+except ImportError:  # Utilise PyMySQL, pur Python, quand mysql-connector-python n'est pas installable.
+    import pymysql
+
+    class _PyMySQLConnector:
+        Error = pymysql.MySQLError
+
+        @staticmethod
+        def connect(**kwargs):
+            kwargs.setdefault("charset", "utf8mb4")
+            return pymysql.connect(**kwargs)
+
+    class _MySQLModule:
+        connector = _PyMySQLConnector
+
+    mysql = _MySQLModule()
 from dotenv import load_dotenv  # Importe des éléments spécifiques depuis un module.
 from flask import Flask, render_template, request, redirect, url_for, jsonify, session  # Importe des éléments spécifiques depuis un module.
 from services.opcua_status import (  # Importe des éléments spécifiques depuis un module.

@@ -8,7 +8,6 @@ WORKDIR /app
 COPY requirements.txt /app/requirements.txt
 RUN python -m pip install --no-cache-dir setuptools==57.5.0 wheel
 RUN python -m pip install --prefer-binary --no-cache-dir flask==3.0.3
-RUN python -m pip install --prefer-binary --no-cache-dir mysql-connector-python==8.4.0
 RUN python -m pip install --prefer-binary --no-cache-dir opcua==0.98.13
 RUN python -m pip install --prefer-binary --no-cache-dir pymysql==1.1.1
 RUN python -m pip install --prefer-binary --no-cache-dir python-dotenv==1.0.1
