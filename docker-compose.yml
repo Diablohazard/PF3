@@ -5,7 +5,8 @@ services:
     ports:
       - "8180:8180"
     depends_on:
-      - db
+      db:
+        condition: service_healthy
     environment:
       DB_HOST: db
       DB_PORT: 3306
@@ -24,6 +25,12 @@ services:
       MYSQL_PASSWORD: pf3password
     ports:
       - "8181:3306"
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "pf3user", "-ppf3password"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
     volumes:
       - db_data:/var/lib/mysql
 volumes:

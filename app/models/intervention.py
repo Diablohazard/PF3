@@ -1,13 +1,13 @@
-from sqlalchemy import Column, Integer, DATETIME, String, ForeignKey
+from sqlalchemy import Column, DateTime, ForeignKey, Integer, String
 from sqlalchemy.orm import relationship
 from app.database.base import Base
 
-class donnees_cpu(Base):
-    __tablename__ = "donnees_cpu"
+class intervention(Base):
+    __tablename__ = "intervention"
 
     id_inter = Column(Integer, primary_key=True, autoincrement=True)
     nom = Column(String(50), nullable=False)
-    horodatage = Column(DATETIME, nullable=False)
+    horodatage = Column(DateTime, nullable=False)
     signalisation = Column(String(1000), nullable=False)
 
     ## Pour la jointure

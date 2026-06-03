@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, ForeignKey
+from sqlalchemy import Column, Float, ForeignKey, Integer, Numeric
 from sqlalchemy.orm import relationship
 from app.database.base import Base
 
@@ -6,8 +6,8 @@ class suivi_conso(Base):
     __tablename__ = "suivi_conso"
 
     id_suivi = Column(Integer, primary_key=True, autoincrement=True)
-    courant = Column(float(50), nullable=False)
-    puissance = Column(float(50), nullable=False)
+    courant = Column(Float, nullable=False)
+    puissance = Column(Float, nullable=False)
     energie = Column(Numeric(15, 2), nullable=False)
 
     ## Pour la jointure
