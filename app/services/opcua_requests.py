@@ -2,9 +2,16 @@ import atexit  # Importe un module ou un package.
 import os  # Importe un module ou un package.
 import threading  # Importe un module ou un package.
 
-from opcua import Client as SyncClient  # Importe un élément spécifique depuis un module.
-from opcua import ua  # Importe un élément spécifique depuis un module.
-from opcua.crypto import security_policies  # Importe un élément spécifique depuis un module.
+try:  # OPC UA est optionnel pour permettre le démarrage de l'app sans l'automate.
+    from opcua import Client as SyncClient  # Importe un élément spécifique depuis un module.
+    from opcua import ua  # Importe un élément spécifique depuis un module.
+    from opcua.crypto import security_policies  # Importe un élément spécifique depuis un module.
+    OPCUA_IMPORT_ERROR = None
+except ImportError as exc:
+    SyncClient = None
+    ua = None
+    security_policies = None
+    OPCUA_IMPORT_ERROR = exc
 
 try:  # Tente d’exécuter un bloc de code pouvant lever une exception.
     from connections.opcua import fetch_server_endpoints  # Importe un élément spécifique depuis un module.
@@ -47,7 +54,16 @@ _symbol_set_lock = threading.Lock()  # Lock pour accès thread-safe au cache  # 
 
 # python-opcua exposes security policy classes under opcua.crypto.security_policies
 # (not under opcua.ua in recent versions).
-SECURITY_POLICY_BASIC256SHA256 = security_policies.SecurityPolicyBasic256Sha256  # Affecte une valeur à une variable.
+SECURITY_POLICY_BASIC256SHA256 = (
+    security_policies.SecurityPolicyBasic256Sha256 if security_policies else None
+)  # Affecte une valeur à une variable.
+
+
+def _require_opcua():  # Définit la fonction _require_opcua.
+    if OPCUA_IMPORT_ERROR is not None:
+        raise RuntimeError(
+            "La dépendance python-opcua n'est pas installée dans cette image Docker."
+        ) from OPCUA_IMPORT_ERROR
 
 
 def _get_symbol_set_variables(client):  # Définit la fonction _get_symbol_set_variables.
@@ -162,6 +178,7 @@ def _is_sign_and_encrypt_config(security_config):  # Définit la fonction _is_si
 
 
 def _create_sync_client(url, username, password, timeout, security_config=None):  # Définit la fonction _create_sync_client.
+    _require_opcua()
     _validate_security_config(security_config)  # Effectue une opération de traitement.
 
     client = SyncClient(url, timeout=timeout)  # Affecte une valeur à une variable.
@@ -283,6 +300,7 @@ def _read_with_retry(read_operation, url, username, password, timeout, security_
 
 
 def server_accepts_anonymous(url, timeout=10):  # Définit la fonction server_accepts_anonymous.
+    _require_opcua()
     endpoints = fetch_server_endpoints(url, timeout=timeout)  # Affecte une valeur à une variable.
 
     for endpoint in endpoints:  # Boucle sur une séquence d’éléments.
@@ -294,6 +312,7 @@ def server_accepts_anonymous(url, timeout=10):  # Définit la fonction server_ac
 
 
 def server_supports_sign_and_encrypt(url, timeout=10):  # Définit la fonction server_supports_sign_and_encrypt.
+    _require_opcua()
     endpoints = fetch_server_endpoints(url, timeout=timeout)  # Affecte une valeur à une variable.
 
     for endpoint in endpoints:  # Boucle sur une séquence d’éléments.
@@ -373,6 +392,7 @@ def read_automate_variables_sync(url, username, password, timeout=10, security_c
 
 
 def _coerce_value_for_variant_type(value, variant_type):  # Définit la fonction _coerce_value_for_variant_type.
+    _require_opcua()
     if variant_type in (  # Teste une condition.
         ua.VariantType.SByte,  # Effectue une opération de traitement.
         ua.VariantType.Byte,  # Effectue une opération de traitement.
