@@ -9,6 +9,7 @@ try:
         read_alert_thresholds_sync,
         read_node_value_sync,
         read_cpu_metrics_sync,
+        OpcuaNodeReadError,
         server_accepts_anonymous,
         server_supports_sign_and_encrypt,
         write_alert_thresholds_sync,
@@ -19,6 +20,7 @@ except ImportError:
         read_alert_thresholds_sync,
         read_node_value_sync,
         read_cpu_metrics_sync,
+        OpcuaNodeReadError,
         server_accepts_anonymous,
         server_supports_sign_and_encrypt,
         write_alert_thresholds_sync,
@@ -219,6 +221,20 @@ def get_cpu_metrics_details():
             "error_code": None,
         }
     except Exception as exc:
+        if isinstance(exc, OpcuaNodeReadError) and _extract_error_code(exc) == "BadNodeIdUnknown":
+            error_message = (
+                "Erreur de lecture des variables CPU OPC UA: les NodeIds CPU/RAM/Temp "
+                "ne correspondent pas a l'espace d'adressage expose par l'automate."
+            )
+            print(f"{error_message} {exc.errors}")
+            return {
+                "ok": False,
+                "data": None,
+                "error": error_message,
+                "error_code": "BadNodeIdUnknown",
+                "node_errors": exc.errors,
+            }
+
         error_message = f"Erreur de lecture des variables CPU OPC UA: {exc}"
         print(error_message)
         return {

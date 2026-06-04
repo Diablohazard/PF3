@@ -1186,6 +1186,12 @@ def _build_alert_statuses(seuils, automate_values):
     }
 
 
+def _update_opcua_status_from_read_error(error_message, error_code):
+    _last_opcua_status["error"] = error_message
+    _last_opcua_status["error_code"] = error_code
+    _last_opcua_status["ok"] = error_code == "BadNodeIdUnknown"
+
+
 # ============================================================================
 @app.route("/api/automate-status")
 def api_automate_status():
@@ -1345,9 +1351,7 @@ def api_cpu_temperature():
         else:
             opcua_error = (variables or {}).get("error", "Lecture OPC UA impossible")
             opcua_error_code = (variables or {}).get("error_code")
-            _last_opcua_status["ok"] = False
-            _last_opcua_status["error"] = opcua_error
-            _last_opcua_status["error_code"] = opcua_error_code
+            _update_opcua_status_from_read_error(opcua_error, opcua_error_code)
     except Exception as exc:
         opcua_error = str(exc)
         opcua_error_code = type(exc).__name__
@@ -1488,9 +1492,7 @@ def api_suivi_consommation():
         else:
             opcua_error = (variables or {}).get("error", "Lecture OPC UA impossible")
             opcua_error_code = (variables or {}).get("error_code")
-            _last_opcua_status["ok"] = False
-            _last_opcua_status["error"] = opcua_error
-            _last_opcua_status["error_code"] = opcua_error_code
+            _update_opcua_status_from_read_error(opcua_error, opcua_error_code)
     except Exception as exc:
         opcua_error = str(exc)
         opcua_error_code = type(exc).__name__

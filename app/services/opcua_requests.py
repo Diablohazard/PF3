@@ -44,6 +44,41 @@ _persistent_client_lock = threading.Lock()
 SECURITY_POLICY_BASIC256SHA256 = security_policies.SecurityPolicyBasic256Sha256
 
 
+class OpcuaNodeReadError(RuntimeError):
+    def __init__(self, message, errors):
+        super().__init__(message)
+        self.errors = errors
+
+
+def _error_mentions(error_text, code):
+    return code in str(error_text)
+
+
+def _errors_are_only_bad_node_ids(errors):
+    return bool(errors) and all(
+        _error_mentions(error_text, "BadNodeIdUnknown")
+        for error_text in errors.values()
+    )
+
+
+def _should_retry_opcua_error(exc):
+    if isinstance(exc, OpcuaNodeReadError) and _errors_are_only_bad_node_ids(exc.errors):
+        return False
+    return True
+
+
+def _node_id_env_name(key):
+    return f"OPCUA_NODE_{key.upper()}"
+
+
+def _get_node_id(key):
+    return (os.getenv(_node_id_env_name(key)) or AUTOMATE_NODE_IDS[key]).strip()
+
+
+def _get_node_ids(keys):
+    return {key: _get_node_id(key) for key in keys}
+
+
 def _fetch_server_certificate(url, timeout=10):
     """
     Récupère automatiquement le certificat serveur via GetEndpoints (standard OPC UA).
@@ -198,7 +233,9 @@ def _read_with_retry(read_operation, url, username, password, timeout, security_
         try:
             client = _ensure_persistent_client(url, username, password, timeout, security_config)
             return read_operation(client)
-        except Exception:
+        except Exception as exc:
+            if not _should_retry_opcua_error(exc):
+                raise
             # Force reconnect once, then retry the same operation.
             _disconnect_persistent_client()
             client = _ensure_persistent_client(url, username, password, timeout, security_config)
@@ -258,7 +295,7 @@ def read_named_nodes_sync(url, username, password, node_ids, timeout=10, securit
 
         # Si rien n'est lisible, on remonte une erreur claire au code appelant.
         if errors and len(errors) == len(node_ids):
-            raise RuntimeError(f"Aucune variable OPC UA lisible: {errors}")
+            raise OpcuaNodeReadError(f"Aucune variable OPC UA lisible: {errors}", errors)
 
         return values
 
@@ -278,14 +315,14 @@ def read_automate_variables_sync(url, username, password, timeout=10, security_c
         url=url,
         username=username,
         password=password,
-        node_ids=AUTOMATE_NODE_IDS,
+        node_ids=_get_node_ids(AUTOMATE_NODE_IDS.keys()),
         timeout=timeout,
         security_config=security_config,
     )
 
 
 def read_cpu_metrics_sync(url, username, password, timeout=10, security_config=None):
-    node_ids = {key: AUTOMATE_NODE_IDS[key] for key in CPU_METRIC_KEYS}
+    node_ids = _get_node_ids(CPU_METRIC_KEYS)
     return read_named_nodes_sync(
         url=url,
         username=username,
@@ -375,7 +412,7 @@ def write_named_nodes_sync(url, username, password, node_values, timeout=10, sec
 
 def read_alert_thresholds_sync(url, username, password, timeout=10, security_config=None):
     # Lecture ciblée des seuils d'alerte (RAM/CPU/TEMP) pour l'UI de paramétrage.
-    node_ids = {key: AUTOMATE_NODE_IDS[key] for key in ALERT_THRESHOLD_KEYS}
+    node_ids = _get_node_ids(ALERT_THRESHOLD_KEYS)
     return read_named_nodes_sync(
         url=url,
         username=username,
@@ -393,7 +430,7 @@ def write_alert_thresholds_sync(url, username, password, thresholds, timeout=10,
         if key not in thresholds:
             continue
         node_values[key] = {
-            "node_id": AUTOMATE_NODE_IDS[key],
+            "node_id": _get_node_id(key),
             "value": float(thresholds[key]),
         }
 
