@@ -32,6 +32,7 @@ AUTOMATE_NODE_IDS = {
 }
 
 ALERT_THRESHOLD_KEYS = ("seuil_ram", "seuil_cpu", "seuil_temp")
+CPU_METRIC_KEYS = ("cpu_load", "ram_usage", "temp_c")
 
 
 _persistent_client = None
@@ -267,6 +268,18 @@ def read_automate_variables_sync(url, username, password, timeout=10, security_c
         username=username,
         password=password,
         node_ids=AUTOMATE_NODE_IDS,
+        timeout=timeout,
+        security_config=security_config,
+    )
+
+
+def read_cpu_metrics_sync(url, username, password, timeout=10, security_config=None):
+    node_ids = {key: AUTOMATE_NODE_IDS[key] for key in CPU_METRIC_KEYS}
+    return read_named_nodes_sync(
+        url=url,
+        username=username,
+        password=password,
+        node_ids=node_ids,
         timeout=timeout,
         security_config=security_config,
     )

@@ -8,6 +8,7 @@ try:
         read_automate_variables_sync,
         read_alert_thresholds_sync,
         read_node_value_sync,
+        read_cpu_metrics_sync,
         server_accepts_anonymous,
         server_supports_sign_and_encrypt,
         write_alert_thresholds_sync,
@@ -17,6 +18,7 @@ except ImportError:
         read_automate_variables_sync,
         read_alert_thresholds_sync,
         read_node_value_sync,
+        read_cpu_metrics_sync,
         server_accepts_anonymous,
         server_supports_sign_and_encrypt,
         write_alert_thresholds_sync,
@@ -161,6 +163,33 @@ def get_automate_variables_details():
         }
     except Exception as exc:
         error_message = f"Erreur de lecture des variables OPC UA: {exc}"
+        print(error_message)
+        return {
+            "ok": False,
+            "data": None,
+            "error": error_message,
+            "error_code": _extract_error_code(exc),
+        }
+
+
+def get_cpu_metrics_details():
+    config = _get_opcua_config()
+    try:
+        values = read_cpu_metrics_sync(
+            url=config["url"],
+            username=config["username"],
+            password=config["password"],
+            timeout=config["timeout"],
+            security_config=config.get("security_config"),
+        )
+        return {
+            "ok": True,
+            "data": values,
+            "error": None,
+            "error_code": None,
+        }
+    except Exception as exc:
+        error_message = f"Erreur de lecture des variables CPU OPC UA: {exc}"
         print(error_message)
         return {
             "ok": False,

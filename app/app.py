@@ -9,6 +9,7 @@ from flask import Flask, render_template, request, redirect, url_for, jsonify, s
 from services.opcua_status import (
     get_alert_thresholds_details,
     get_automate_variables_details,
+    get_cpu_metrics_details,
     get_opcua_status_details,
     set_alert_thresholds_details,
 )
@@ -1126,6 +1127,11 @@ _opcua_variables_cache = {
     "timestamp": 0,
 }
 
+_opcua_cpu_metrics_cache = {
+    "data": None,
+    "timestamp": 0,
+}
+
 
 def _get_cached_automate_variables(force_refresh=False):
     """
@@ -1148,6 +1154,22 @@ def _get_cached_automate_variables(force_refresh=False):
     _opcua_variables_cache["timestamp"] = now
     
     return result, True  # (données, was_refreshed=True)
+
+
+def _get_cached_cpu_metrics(force_refresh=False):
+    global _opcua_cpu_metrics_cache
+
+    now = time.time()
+    age = now - _opcua_cpu_metrics_cache["timestamp"]
+
+    if not force_refresh and age < OPCUA_CACHE_TTL and _opcua_cpu_metrics_cache["data"] is not None:
+        return _opcua_cpu_metrics_cache["data"], False
+
+    result = get_cpu_metrics_details()
+    _opcua_cpu_metrics_cache["data"] = result
+    _opcua_cpu_metrics_cache["timestamp"] = now
+
+    return result, True
 
 
 def _build_alert_statuses(seuils, automate_values):
@@ -1297,7 +1319,7 @@ def api_cpu_temperature():
     # 1) Tenter une lecture OPC UA pour enrichir la base, sans bloquer l'affichage.
     # OPTIMISATION: utiliser le cache OPC UA côté serveur au lieu de refaire une requête à chaque fois.
     try:
-        variables, was_refreshed = _get_cached_automate_variables()
+        variables, was_refreshed = _get_cached_cpu_metrics()
         if variables.get("ok") and variables.get("data"):
             data = variables["data"]
             charge = data.get("cpu_load", 0)
