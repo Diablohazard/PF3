@@ -14,7 +14,12 @@ from services.opcua_status import (
     get_opcua_status_details,
     set_alert_thresholds_details,
 )
-from services.opcua_requests import close_persistent_client
+from services.opcua_requests import (
+    ALERT_THRESHOLD_KEYS,
+    CPU_METRIC_KEYS,
+    close_persistent_client,
+    get_configured_node_ids,
+)
  
 load_dotenv()
  
@@ -1216,6 +1221,17 @@ def _update_opcua_status_from_read_error(error_message, error_code):
 def api_automate_status():
     """Retourne le dernier statut OPC UA connu sans déclencher de connexion supplémentaire."""
     return jsonify(_last_opcua_status)
+
+
+@app.route("/api/opcua-node-ids")
+def api_opcua_node_ids():
+    return jsonify(
+        {
+            "ok": True,
+            "cpu_metrics": get_configured_node_ids(CPU_METRIC_KEYS),
+            "alert_thresholds": get_configured_node_ids(ALERT_THRESHOLD_KEYS),
+        }
+    )
 
 
 @app.route("/api/alert-thresholds", methods=["GET"])

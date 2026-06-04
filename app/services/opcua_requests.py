@@ -44,10 +44,13 @@ _persistent_client_lock = threading.Lock()
 SECURITY_POLICY_BASIC256SHA256 = security_policies.SecurityPolicyBasic256Sha256
 
 
-class OpcuaNodeReadError(RuntimeError):
+class OpcuaNodeError(RuntimeError):
     def __init__(self, message, errors):
         super().__init__(message)
         self.errors = errors
+
+
+OpcuaNodeReadError = OpcuaNodeError
 
 
 def _error_mentions(error_text, code):
@@ -62,7 +65,7 @@ def _errors_are_only_bad_node_ids(errors):
 
 
 def _should_retry_opcua_error(exc):
-    if isinstance(exc, OpcuaNodeReadError) and _errors_are_only_bad_node_ids(exc.errors):
+    if isinstance(exc, OpcuaNodeError) and _errors_are_only_bad_node_ids(exc.errors):
         return False
     return True
 
@@ -77,6 +80,11 @@ def _get_node_id(key):
 
 def _get_node_ids(keys):
     return {key: _get_node_id(key) for key in keys}
+
+
+def get_configured_node_ids(keys=None):
+    selected_keys = keys or AUTOMATE_NODE_IDS.keys()
+    return _get_node_ids(selected_keys)
 
 
 def _fetch_server_certificate(url, timeout=10):
@@ -295,7 +303,7 @@ def read_named_nodes_sync(url, username, password, node_ids, timeout=10, securit
 
         # Si rien n'est lisible, on remonte une erreur claire au code appelant.
         if errors and len(errors) == len(node_ids):
-            raise OpcuaNodeReadError(f"Aucune variable OPC UA lisible: {errors}", errors)
+            raise OpcuaNodeError(f"Aucune variable OPC UA lisible: {errors}", errors)
 
         return values
 
@@ -396,7 +404,7 @@ def write_named_nodes_sync(url, username, password, node_values, timeout=10, sec
                 errors[name] = str(exc)
 
         if errors and len(errors) == len(node_values):
-            raise RuntimeError(f"Aucun seuil OPC UA ecrit: {errors}")
+            raise OpcuaNodeError(f"Aucun seuil OPC UA ecrit: {errors}", errors)
 
         return {"ok": True, "results": results, "errors": errors}
 
