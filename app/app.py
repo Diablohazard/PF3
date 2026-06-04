@@ -6,6 +6,7 @@ from datetime import datetime
 import mysql.connector
 from dotenv import load_dotenv
 from flask import Flask, render_template, request, redirect, url_for, jsonify, session
+from werkzeug.exceptions import HTTPException
 from services.opcua_status import (
     get_alert_thresholds_details,
     get_automate_variables_details,
@@ -21,6 +22,20 @@ app = Flask(__name__, template_folder="../templates", static_folder="../static")
 app.secret_key = "une_cle_secrete_tres_longue"
  
  
+@app.errorhandler(Exception)
+def handle_api_exception(exc):
+    if request.path.startswith("/api/"):
+        status_code = exc.code if isinstance(exc, HTTPException) else 500
+        return jsonify(
+            {
+                "ok": False,
+                "error": str(exc),
+                "error_code": type(exc).__name__,
+            }
+        ), status_code
+    raise exc
+
+
  
 def get_db_connection():
     return mysql.connector.connect(
