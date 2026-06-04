@@ -195,6 +195,10 @@ def ensure_cpu_data_table(cursor, table_name):
         cursor.execute(f"ALTER TABLE `{table_name}` ADD COLUMN seuil_ram FLOAT NULL")
     if "seuil_temperature" not in existing_columns:
         cursor.execute(f"ALTER TABLE `{table_name}` ADD COLUMN seuil_temperature FLOAT NULL")
+    if "horodatage" not in existing_columns:
+        cursor.execute(
+            f"ALTER TABLE `{table_name}` ADD COLUMN horodatage TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
+        )
 
 
 def enregistrer_temperature(charge, ram, temperature, alerte=None):
