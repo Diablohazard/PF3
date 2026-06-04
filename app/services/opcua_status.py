@@ -264,6 +264,20 @@ def get_alert_thresholds_details():
             "error_code": None,
         }
     except Exception as exc:
+        if isinstance(exc, OpcuaNodeReadError) and _extract_error_code(exc) == "BadNodeIdUnknown":
+            error_message = (
+                "Erreur de lecture des seuils OPC UA: les NodeIds seuil_ram/seuil_cpu/seuil_temp "
+                "ne correspondent pas a l'espace d'adressage expose par l'automate."
+            )
+            print(f"{error_message} {exc.errors}")
+            return {
+                "ok": False,
+                "data": None,
+                "error": error_message,
+                "error_code": "BadNodeIdUnknown",
+                "node_errors": exc.errors,
+            }
+
         error_message = f"Erreur de lecture des seuils OPC UA: {exc}"
         print(error_message)
         return {

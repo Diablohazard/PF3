@@ -703,7 +703,9 @@
 
         function setThresholdMessage(text, color) {
             if (!thresholdsMessage) return;
-            thresholdsMessage.textContent = text;
+            const message = String(text || '');
+            thresholdsMessage.textContent = message.length > 180 ? message.slice(0, 177) + '...' : message;
+            thresholdsMessage.title = message;
             thresholdsMessage.style.color = color || '#111827';
         }
 
