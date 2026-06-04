@@ -97,6 +97,14 @@ def get_opcua_status_details():
     config = _get_opcua_config()
 
     security_mode = (config.get("security_config") or {}).get("mode", "None")
+    if security_mode == "None":
+        return _check_connection(
+            config["url"],
+            config["username"],
+            config["password"],
+            config["timeout"],
+            config.get("security_config"),
+        )
 
     # If credentials are provided, test authenticated connectivity directly.
     # This avoids false negatives when GetEndpoints is slow/unavailable.
