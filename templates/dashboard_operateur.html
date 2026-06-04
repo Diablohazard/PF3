@@ -741,7 +741,11 @@
                     if (seuilRamStatus) seuilRamStatus.textContent = statuses.seuil_ram || '--';
                     if (seuilTempStatus) seuilTempStatus.textContent = statuses.seuil_temp || '--';
                     updateHistoryAlertVisuals();
-                    setThresholdMessage(`Seuils chargés (${data.source || 'n/a'}).`, '#047857');
+                    if (data.warning) {
+                        setThresholdMessage(`Seuils chargés (${data.source || 'n/a'}). ${data.warning}`, '#b45309');
+                    } else {
+                        setThresholdMessage(`Seuils chargés (${data.source || 'n/a'}).`, '#047857');
+                    }
                 })
                 .catch(error => {
                     setThresholdMessage(error.message || 'Erreur lors du chargement des seuils.', '#b91c1c');

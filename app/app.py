@@ -1269,6 +1269,24 @@ def api_get_alert_thresholds():
             }
         )
 
+    if opcua_result.get("error_code") == "BadNodeIdUnknown":
+        payload = {
+            "seuil_cpu": 0.0,
+            "seuil_ram": 0.0,
+            "seuil_temp": 0.0,
+        }
+        return jsonify(
+            {
+                "ok": True,
+                "data": payload,
+                "statuses": _build_alert_statuses(payload, {}),
+                "source": "default",
+                "warning": "NodeIds seuils introuvables sur l'automate; valeurs par defaut utilisees.",
+                "opcua_error": opcua_result.get("error"),
+                "opcua_error_code": opcua_result.get("error_code"),
+            }
+        )
+
     return jsonify(
         {
             "ok": False,
