@@ -60,10 +60,17 @@ def _get_opcua_config():
     except ValueError:
         timeout = DEFAULT_OPCUA_TIMEOUT
 
+    auth_mode = (os.getenv("OPCUA_AUTH") or "").strip().lower()
+    username = (os.getenv("OPCUA_USERNAME") or "").strip()
+    password = (os.getenv("OPCUA_PASSWORD") or "").strip()
+    if auth_mode == "anonymous":
+        username = ""
+        password = ""
+
     return {
         "url": os.getenv("OPCUA_URL", DEFAULT_OPCUA_URL).strip(),
-        "username": (os.getenv("OPCUA_USERNAME") or "").strip(),
-        "password": (os.getenv("OPCUA_PASSWORD") or "").strip(),
+        "username": username,
+        "password": password,
         "timeout": timeout,
         "security_config": {
             "mode": (os.getenv("OPCUA_SECURITY_MODE", "None") or "None").strip(),
