@@ -105,6 +105,21 @@ def get_opcua_status_details():
 
     security_mode = (config.get("security_config") or {}).get("mode", "None")
     if security_mode == "None":
+        try:
+            anonymous_allowed = server_accepts_anonymous(
+                config["url"],
+                timeout=config["timeout"],
+            )
+            if not config["username"] and not anonymous_allowed:
+                error_message = (
+                    "Connexion OPC UA refusee: l'endpoint None est joignable, "
+                    "mais le serveur n'annonce pas de token Anonymous."
+                )
+                print(error_message)
+                return _build_status(False, error_message, "AnonymousNotAllowed")
+        except Exception as exc:
+            print(f"Info: verification Anonymous via GetEndpoints impossible: {exc}")
+
         return _check_connection(
             config["url"],
             config["username"],

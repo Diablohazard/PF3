@@ -12,6 +12,7 @@ if APP_DIR not in sys.path:
     sys.path.insert(0, APP_DIR)
 
 from services.opcua_requests import (  # noqa: E402
+    fetch_server_endpoints,
     read_cpu_metrics_sync,
     read_node_value_sync,
     server_accepts_anonymous,
@@ -27,6 +28,10 @@ def _print_result(label, callback):
     print(f"\n[{label}]")
     try:
         result = callback()
+        if isinstance(result, dict) and result.get("ok") is False:
+            print("ECHEC")
+            print(result)
+            return False
         print("OK")
         if result is not None:
             print(result)
@@ -45,6 +50,26 @@ def _tcp_check(url, timeout):
         return f"{host}:{port} accessible"
 
 
+def _describe_endpoints(url, timeout):
+    endpoints = fetch_server_endpoints(url, timeout=timeout)
+    lines = []
+    for idx, endpoint in enumerate(endpoints, start=1):
+        lines.append(f"Endpoint {idx}:")
+        lines.append(f"  Url:      {endpoint.EndpointUrl}")
+        lines.append(f"  Mode:     {endpoint.SecurityMode}")
+        lines.append(f"  Policy:   {endpoint.SecurityPolicyUri}")
+        if not endpoint.UserIdentityTokens:
+            lines.append("  Tokens:   <aucun>")
+        for token in endpoint.UserIdentityTokens:
+            lines.append(
+                "  Token:    "
+                f"type={token.TokenType} "
+                f"policy_id={token.PolicyId!r} "
+                f"security_policy={token.SecurityPolicyUri!r}"
+            )
+    return "\n".join(lines)
+
+
 def main():
     load_dotenv(os.path.join(ROOT_DIR, ".env"))
     config = _get_opcua_config()
@@ -58,6 +83,11 @@ def main():
     print(f"Timeout:   {config['timeout']}s")
 
     _print_result("TCP", lambda: _tcp_check(config["url"], config["timeout"]))
+
+    _print_result(
+        "Endpoints annonces par le serveur",
+        lambda: _describe_endpoints(config["url"], config["timeout"]),
+    )
 
     _print_result(
         "Statut applicatif",

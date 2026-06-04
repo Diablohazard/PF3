@@ -175,8 +175,19 @@ def _ensure_persistent_client(url, username, password, timeout, security_config=
         _disconnect_persistent_client()
 
     if _persistent_client is None:
-        _persistent_client = _create_sync_client(url, username, password, timeout, security_config)
-        _persistent_client.connect()
+        client = _create_sync_client(url, username, password, timeout, security_config)
+        try:
+            client.connect()
+        except Exception:
+            try:
+                client.disconnect()
+            except Exception:
+                pass
+            _persistent_client = None
+            _persistent_client_config = None
+            raise
+
+        _persistent_client = client
         _persistent_client_config = desired_config
 
     return _persistent_client
