@@ -767,8 +767,12 @@
                 body: JSON.stringify(payload),
             })
                 .then(readApiJson)
-                .then(() => {
-                    setThresholdMessage('Seuils enregistrés dans l\'automate et en base.', '#047857');
+                .then(data => {
+                    if (data.warning) {
+                        setThresholdMessage('Seuils enregistrés en base. Écriture automate ignorée : NodeIds seuils introuvables.', '#b45309');
+                    } else {
+                        setThresholdMessage('Seuils enregistrés dans l\'automate et en base.', '#047857');
+                    }
                     loadAlertThresholds();
                 })
                 .catch(error => {

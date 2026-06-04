@@ -1295,17 +1295,24 @@ def api_set_alert_thresholds():
     except (TypeError, ValueError):
         return jsonify({"ok": False, "error": "Valeurs seuil invalides."}), 400
 
-    # Ordre volontaire: écrire d'abord sur l'automate, puis persister en base.
+    # Ordre nominal: écrire d'abord sur l'automate, puis persister en base.
+    # Si les NodeIds des seuils ne sont pas exposés, on garde la sauvegarde DB
+    # pour ne pas bloquer le paramétrage côté page web.
     write_result = set_alert_thresholds_details(seuil_ram=seuil_ram, seuil_cpu=seuil_cpu, seuil_temp=seuil_temp)
+    opcua_warning = None
     if not write_result.get("ok"):
-        _last_opcua_status["ok"] = False
-        _last_opcua_status["error"] = write_result.get("error")
-        _last_opcua_status["error_code"] = write_result.get("error_code")
-        return jsonify({"ok": False, "error": write_result.get("error"), "error_code": write_result.get("error_code")}), 502
-
-    _last_opcua_status["ok"] = True
-    _last_opcua_status["error"] = None
-    _last_opcua_status["error_code"] = None
+        if write_result.get("error_code") == "BadNodeIdUnknown":
+            opcua_warning = write_result.get("error")
+            _update_opcua_status_from_read_error(opcua_warning, write_result.get("error_code"))
+        else:
+            _last_opcua_status["ok"] = False
+            _last_opcua_status["error"] = write_result.get("error")
+            _last_opcua_status["error_code"] = write_result.get("error_code")
+            return jsonify({"ok": False, "error": write_result.get("error"), "error_code": write_result.get("error_code")}), 502
+    else:
+        _last_opcua_status["ok"] = True
+        _last_opcua_status["error"] = None
+        _last_opcua_status["error_code"] = None
 
     try:
         enregistrer_seuils_alerte(charge=seuil_cpu, ram=seuil_ram, temperature=seuil_temp)
@@ -1318,7 +1325,7 @@ def api_set_alert_thresholds():
                     "seuil_ram": seuil_ram,
                     "seuil_temp": seuil_temp,
                 },
-                "warning": f"Seuils ecrits sur automate mais sauvegarde DB echouee: {exc}",
+                "warning": f"Sauvegarde DB echouee: {exc}",
             }
         )
 
@@ -1330,6 +1337,8 @@ def api_set_alert_thresholds():
                 "seuil_ram": seuil_ram,
                 "seuil_temp": seuil_temp,
             },
+            "source": "database" if opcua_warning else "opcua",
+            "warning": opcua_warning,
         }
     )
 
